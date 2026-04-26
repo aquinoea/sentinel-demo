@@ -1,19 +1,82 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Sentinel Camp Mystic Demo V4.1
+ * Sentinel Camp Mystic Demo V6
  * ------------------------------------------------------------
- * Final pitch-demo version.
+ * Direction:
+ * - Uses the clean V4 intro layout you liked.
+ * - Adds V5-style numbered step circles for clarity.
+ * - Keeps colored supporting detail under each step card.
+ * - Restores the better right-side event bars.
+ * - Includes the full clickable dashboard after the intro.
+ *
  * Requirements:
  * 1. Put your map image at: public/camp-mystic-map.png
- * 2. src/index.css should contain: @import "tailwindcss";
- * 3. vite.config.js should include the Tailwind Vite plugin.
+ * 2. src/index.css should contain only: @import "tailwindcss";
  */
 
 const MAP_IMAGE_SRC = "/camp-mystic-map.png";
 const STARTING_MINUTES = 34;
 const COUNTDOWN_INTERVAL_MS = 5000;
-const DRAMATIC_REVEAL_MS = 10000;
+
+const INTRO_STEPS = [
+  {
+    id: "monitor",
+    label: "0 / MONITORING",
+    title: "Monitoring Active",
+    body: "All systems normal. Sentinel is watching the river corridor, cabins, and personnel.",
+    metric: "READY",
+    metricTone: "cyan",
+    detailTone: "green",
+    detailItems: ["System Armed", "Sensors Online", "No Active Incident", "Monitoring River Corridor"],
+  },
+  {
+    id: "alert",
+    label: "1 / ALERT",
+    title: "Alert Triggered",
+    body: "At 2:41 AM, Sentinel detects multiple signals at once: flash flood warning, rising water, and rainfall intensity.",
+    metric: "RED",
+    metricTone: "red",
+    detailTone: "red",
+    detailItems: ["River rising rapidly", "Rainfall intensity high", "Flood warning active", "Risk elevated to RED"],
+  },
+  {
+    id: "notify",
+    label: "2 / NOTIFY",
+    title: "Director Notified",
+    body: "The director and critical roles receive the incident alert immediately. The system tracks acknowledgment.",
+    metric: "2:43 AM",
+    metricTone: "cyan",
+    detailTone: "cyan",
+    detailItems: ["SMS delivered", "Director acknowledged", "Counselors pending", "Transport not responding"],
+  },
+  {
+    id: "decide",
+    label: "3 / DECIDE",
+    title: "Evacuation Decision",
+    body: "Evacuate low-lying cabins first. Move children toward higher ground.",
+    metric: "23 min",
+    metricTone: "cyan",
+    detailTone: "yellow",
+    detailItems: ["Low cabins prioritized", "Move toward rally point", "Bridge risk under watch", "Delay increases risk"],
+  },
+  {
+    id: "command",
+    label: "4 / COMMAND",
+    title: "Command Center Ready",
+    body: "Full operational visibility: children accounted for, alerts, decisions, and escalation tracking.",
+    metric: "127 / 184",
+    metricTone: "red",
+    detailTone: "red",
+    detailItems: ["Children status visible", "Map risk visible", "Actions assigned", "Escalations obvious"],
+  },
+];
+
+const SIGNALS = [
+  { label: "River level", normal: "Normal", active: "Rising", activeTone: "red" },
+  { label: "Rainfall", normal: "Stable", active: "High", activeTone: "yellow" },
+  { label: "Flood warning", normal: "None", active: "Active", activeTone: "red" },
+];
 
 const CHILDREN_GROUPS = [
   { id: "cabin-3", group: "Cabin 3 (Creek Edge)", accounted: "20 / 24", status: "Evacuate first", tone: "red" },
@@ -46,40 +109,18 @@ const TIMELINE_EVENTS = [
   { time: "3:05 AM", event: "Headcount: 127 / 184", type: "Headcount", tone: "purple" },
 ];
 
-const STORY_STEPS = [
-  {
-    label: "1 / Alert",
-    title: "Alert Triggered",
-    body: "At 2:41 AM, Sentinel detects multiple signals at once: flash flood warning, rising water, and rainfall intensity.",
-    metric: "RED",
-    caption: "Risk elevated automatically",
-    metricTone: "red",
-  },
-  {
-    label: "2 / Notify",
-    title: "Director Notified",
-    body: "The director and critical roles receive the incident alert immediately. The system tracks whether they acknowledge it.",
-    metric: "2:43 AM",
-    caption: "Director acknowledged",
-    metricTone: "cyan",
-  },
-  {
-    label: "3 / Decide",
-    title: "Evacuation Decision",
-    body: "Sentinel turns the alert into a decision: evacuate low-lying cabins first and move children toward higher ground.",
-    metric: "COUNTDOWN",
-    caption: "Time to act",
-    metricTone: "cyan",
-  },
-  {
-    label: "4 / Command",
-    title: "Open Command Center",
-    body: "Now the director can see the full operating picture: children, map, acknowledgments, workflow, and audit trail.",
-    metric: "127 / 184",
-    caption: "Children accounted",
-    metricTone: "red",
-  },
-];
+function textTone(tone) {
+  const tones = {
+    cyan: "text-cyan-300",
+    red: "text-red-400",
+    green: "text-green-400",
+    yellow: "text-yellow-300",
+    blue: "text-blue-300",
+    purple: "text-purple-300",
+    gray: "text-gray-300",
+  };
+  return tones[tone] ?? tones.gray;
+}
 
 function toneClasses(tone) {
   const tones = {
@@ -91,8 +132,17 @@ function toneClasses(tone) {
     purple: "border-purple-400/30 bg-purple-500/10 text-purple-300",
     gray: "border-white/10 bg-white/10 text-gray-300",
   };
-
   return tones[tone] ?? tones.gray;
+}
+
+function detailBoxClasses(tone) {
+  const tones = {
+    green: "border-green-400/20 bg-green-500/10 text-green-300",
+    red: "border-red-400/20 bg-red-500/10 text-red-300",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300",
+    yellow: "border-yellow-400/20 bg-yellow-500/10 text-yellow-300",
+  };
+  return tones[tone] ?? tones.cyan;
 }
 
 function Card({ children, className = "" }) {
@@ -103,14 +153,15 @@ function Card({ children, className = "" }) {
   );
 }
 
-function Button({ children, onClick, active = false, type = "button" }) {
+function Button({ children, onClick, active = false, disabled = false, className = "", type = "button" }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`rounded-2xl px-4 py-2 font-semibold transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-300 ${
+      disabled={disabled}
+      className={`rounded-2xl px-4 py-3 font-semibold transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-30 ${
         active ? "bg-cyan-400 text-black" : "bg-white/10 text-white hover:bg-white/15"
-      }`}
+      } ${className}`}
     >
       {children}
     </button>
@@ -125,6 +176,94 @@ function StatusPill({ children, tone = "gray", className = "" }) {
   );
 }
 
+function StepCircles({ step }) {
+  return (
+    <div className="mt-7 flex items-center gap-3">
+      {INTRO_STEPS.map((item, index) => (
+        <div key={item.id} className="flex items-center gap-3">
+          <div
+            className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition ${
+              index <= step ? "bg-cyan-400 text-black" : "bg-white/10 text-gray-400"
+            }`}
+          >
+            {index}
+          </div>
+          {index < INTRO_STEPS.length - 1 && (
+            <div className={`h-px w-9 ${index < step ? "bg-cyan-300" : "bg-white/10"}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DetailGrid({ items, tone }) {
+  return (
+    <div className={`mt-5 grid grid-cols-2 gap-3 rounded-2xl border p-4 text-sm ${detailBoxClasses(tone)}`}>
+      {items.map((item) => (
+        <div key={item}>• {item}</div>
+      ))}
+    </div>
+  );
+}
+
+function Radar({ active }) {
+  return (
+    <div className="flex justify-center mt-8">
+      <div className={`relative h-64 w-64 rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"}`}>
+        <div className="absolute inset-6 border border-white/10 rounded-full" />
+        <div className="absolute inset-14 border border-white/10 rounded-full" />
+        <div className="absolute inset-24 border border-white/10 rounded-full" />
+        <div className={`absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full ${active ? "bg-red-400" : "bg-cyan-300"} animate-pulse`} />
+      </div>
+    </div>
+  );
+}
+
+function SignalRows({ step }) {
+  const active = step > 0;
+
+  return (
+    <div className="mt-8 space-y-2 text-sm">
+      {SIGNALS.map((signal) => (
+        <div key={signal.label} className="flex justify-between bg-white/5 p-3 rounded-xl">
+          <span>{signal.label}</span>
+          <span className={active ? textTone(signal.activeTone) : "text-green-400"}>
+            {active ? signal.active : signal.normal}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EventStack({ step }) {
+  return (
+    <div className="mt-6 space-y-2 text-sm">
+      {step > 0 && (
+        <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-red-300">
+          Alert: Flash flood risk elevated to RED
+        </div>
+      )}
+      {step > 1 && (
+        <div className="bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-xl text-cyan-300">
+          SMS: Director acknowledged
+        </div>
+      )}
+      {step > 2 && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl text-yellow-300">
+          Decision: Evacuate low cabins
+        </div>
+      )}
+      {step > 3 && (
+        <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-red-300">
+          Escalation: Transport not responding
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChildrenStatusCard() {
   return (
     <Card>
@@ -132,11 +271,7 @@ function ChildrenStatusCard() {
         <h2 className="text-lg font-semibold text-cyan-300">Children Status</h2>
         <StatusPill tone="cyan">Priority</StatusPill>
       </div>
-
-      <p className="mb-4 text-sm text-gray-400">
-        Visible by cabin so staff know who is safe, who is moving, and who needs help.
-      </p>
-
+      <p className="mb-4 text-sm text-gray-400">Visible by cabin so staff know who is safe, who is moving, and who needs help.</p>
       <div className="space-y-2">
         {CHILDREN_GROUPS.map((childGroup) => (
           <div key={childGroup.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -171,21 +306,16 @@ function OverviewScreen({ timeLeft }) {
         <Card>
           <div className="text-5xl font-bold text-cyan-400 animate-pulse">{timeLeft} min</div>
           <div className="text-gray-400">Time Remaining</div>
-
           <div className="mt-4 text-xl font-bold">127 / 184</div>
           <div className="text-gray-400">Children Accounted</div>
-
           <div className="mt-3 text-yellow-400">Decision: Evacuate low-lying cabins first</div>
-
           <div className="mt-5 space-y-2">
             <div className="rounded-xl bg-white/5 p-3 text-cyan-300">SMS: Director acknowledged</div>
             <div className="rounded-xl bg-white/5 p-3 text-red-300">SMS: Transport not responding</div>
           </div>
         </Card>
-
         <ChildrenStatusCard />
       </div>
-
       <Card className="p-0">
         <MapImage compact />
       </Card>
@@ -207,7 +337,6 @@ function AuditScreen() {
       <Card>
         <h2 className="text-xl font-bold">Acknowledgments</h2>
         <p className="mb-4 text-gray-400">Who received the signal, when, and who has not responded.</p>
-
         <div className="space-y-2">
           {ACKNOWLEDGMENTS.map((ack) => (
             <div key={ack.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -220,7 +349,6 @@ function AuditScreen() {
           ))}
         </div>
       </Card>
-
       <ChildrenStatusCard />
     </div>
   );
@@ -231,7 +359,6 @@ function WorkflowScreen() {
     <Card>
       <h2 className="text-xl font-bold">Active Workflow</h2>
       <p className="mb-4 text-gray-400">Pending actions and escalation logic.</p>
-
       <div className="space-y-2">
         {WORKFLOW_TASKS.map((task) => (
           <div key={task.id} className="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[1.2fr_0.9fr_0.9fr] md:items-center">
@@ -249,10 +376,7 @@ function TimelineScreen() {
   return (
     <Card>
       <h2 className="text-xl font-bold">Audit Timeline</h2>
-      <p className="mb-4 text-gray-400">
-        Every alert, acknowledgment, escalation, and headcount update becomes a record.
-      </p>
-
+      <p className="mb-4 text-gray-400">Every alert, acknowledgment, escalation, and headcount update becomes a record.</p>
       <div className="space-y-2">
         {TIMELINE_EVENTS.map(({ time, event, type, tone }) => (
           <div key={`${time}-${event}`} className="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[100px_1fr_170px] md:items-center">
@@ -266,89 +390,60 @@ function TimelineScreen() {
   );
 }
 
-function StoryIntro({ onEnterDashboard, timeLeft, startIncident }) {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [visibleCards, setVisibleCards] = useState({ sms: false, decision: false, escalation: false });
-
-  const currentStep = useMemo(() => {
-    const step = STORY_STEPS[stepIndex];
-    if (step.metric === "COUNTDOWN") return { ...step, metric: `${timeLeft} min`, metricTone: "cyan" };
-    return step;
-  }, [stepIndex, timeLeft]);
-
-  useEffect(() => {
-    let timer;
-
-    if (stepIndex === 1 && !visibleCards.sms) {
-      timer = setTimeout(() => setVisibleCards((cards) => ({ ...cards, sms: true })), DRAMATIC_REVEAL_MS);
-    }
-
-    if (stepIndex === 2 && !visibleCards.decision) {
-      timer = setTimeout(() => setVisibleCards((cards) => ({ ...cards, decision: true })), DRAMATIC_REVEAL_MS);
-    }
-
-    if (stepIndex === 3 && !visibleCards.escalation) {
-      timer = setTimeout(() => setVisibleCards((cards) => ({ ...cards, escalation: true })), DRAMATIC_REVEAL_MS);
-    }
-
-    return () => clearTimeout(timer);
-  }, [stepIndex, visibleCards]);
+function Intro({ onEnterDashboard, timeLeft, startIncident }) {
+  const [step, setStep] = useState(0);
+  const current = INTRO_STEPS[step];
+  const active = step > 0;
 
   const handleNext = () => {
-    if (stepIndex === 0) startIncident();
-    setStepIndex((index) => Math.min(index + 1, STORY_STEPS.length - 1));
+    if (step === 0) startIncident();
+    if (step === INTRO_STEPS.length - 1) {
+      onEnterDashboard();
+      return;
+    }
+    setStep((prev) => Math.min(prev + 1, INTRO_STEPS.length - 1));
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.12),_transparent_25%),radial-gradient(circle_at_bottom_right,_rgba(239,68,68,0.16),_transparent_25%),linear-gradient(180deg,_#020617,_#000)] p-6 text-white">
-      <div className="mx-auto flex min-h-[calc(100vh-48px)] max-w-6xl items-center">
-        <div className="grid w-full gap-6 lg:grid-cols-[1fr_0.85fr]">
-          <Card>
-            <div className="text-xs uppercase tracking-[0.35em] text-cyan-300">Sentinel · Camp Mystic Scenario</div>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.12),_transparent_25%),radial-gradient(circle_at_bottom_right,_rgba(239,68,68,0.12),_transparent_25%),linear-gradient(180deg,_#020617,_#000)] p-6 text-white">
+      <div className="grid lg:grid-cols-2 gap-6 max-w-7xl mx-auto">
+        <div className="border border-white/10 rounded-3xl p-8 flex flex-col justify-between bg-slate-950/80">
+          <div>
+            <div className="text-xs text-cyan-300 tracking-widest">SENTINEL · CAMP MYSTIC SCENARIO</div>
+            <h1 className="text-5xl font-black mt-4 leading-tight">If Camp Mystic had Sentinel, this is how the first minutes would look.</h1>
+            <p className="mt-4 text-gray-400">The warning is not the product. The action is the product.</p>
 
-            <h1 className="mt-4 text-4xl font-bold leading-tight">
-              If Camp Mystic had Sentinel, this is how the first minutes would look.
-            </h1>
+            <StepCircles step={step} />
 
-            <p className="mt-4 text-lg text-gray-400">The warning is not the product. The action is the product.</p>
-
-            <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="text-sm font-semibold text-cyan-300">{currentStep.label}</div>
-              <h2 className="mt-2 text-3xl font-bold">{currentStep.title}</h2>
-              <p className="mt-3 text-gray-300">{currentStep.body}</p>
-            </div>
-
-            <div className="mt-8 flex gap-3">
-              {stepIndex < STORY_STEPS.length - 1 ? (
-                <Button active onClick={handleNext}>{stepIndex === 0 ? "Start Incident" : "Next"}</Button>
-              ) : (
-                <Button active onClick={onEnterDashboard}>View Command Center</Button>
-              )}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex h-full min-h-[420px] flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-4">
-                  <StatusPill tone={currentStep.metricTone}>{currentStep.metric}</StatusPill>
-                  <div className="text-sm text-gray-400">Camp Mystic Scenario</div>
-                </div>
-
-                <div className={`mt-8 text-6xl font-black animate-pulse ${currentStep.metricTone === "red" ? "text-red-400" : "text-cyan-300"}`}>
-                  {currentStep.metric}
-                </div>
-
-                <div className="mt-2 text-gray-400">{currentStep.caption}</div>
+            <div className="mt-8 border border-white/10 rounded-2xl p-6 bg-white/5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-cyan-300 text-sm font-semibold">{current.label}</div>
+                <StatusPill tone={current.metricTone === "red" ? "red" : current.metricTone === "cyan" ? "cyan" : "green"}>
+                  {step === 3 ? timeLeft + " min" : current.metric}
+                </StatusPill>
               </div>
-
-              <div className="mt-8 space-y-3">
-                {visibleCards.sms && <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-cyan-200">SMS: Director acknowledged</div>}
-                {visibleCards.decision && <div className="rounded-2xl border border-yellow-400/20 bg-yellow-500/10 p-4 text-yellow-200">Decision: Evacuate low-lying cabins first</div>}
-                {visibleCards.escalation && <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-red-200">Escalation: Transport not responding</div>}
-              </div>
+              <div className="text-3xl font-black mt-4">{current.title}</div>
+              <p className="mt-3 text-gray-300 leading-relaxed">{current.body}</p>
+              <DetailGrid items={current.detailItems} tone={current.detailTone} />
             </div>
-          </Card>
+
+            <div className="mt-6 text-xs text-gray-500">184 children. One river. Minutes matter.</div>
+          </div>
+
+          <Button active onClick={handleNext} className="mt-6 w-full">
+            {step === 0 ? "Start Incident" : step === INTRO_STEPS.length - 1 ? "View Command Center" : "Next"}
+          </Button>
+        </div>
+
+        <div className="border border-white/10 rounded-3xl p-8 flex flex-col justify-center bg-slate-950/80">
+          <div className="text-right text-sm text-gray-400">Camp Mystic Scenario</div>
+          <div className={`text-6xl font-black mt-6 ${textTone(current.metricTone)} ${current.metricTone === "red" ? "animate-pulse" : ""}`}>
+            {step === 3 ? timeLeft + " min" : current.metric}
+          </div>
+
+          <Radar active={active} />
+          <SignalRows step={step} />
+          <EventStack step={step} />
         </div>
       </div>
     </main>
@@ -369,7 +464,6 @@ function Dashboard({ timeLeft, onReplayIntro }) {
               <h1 className="mt-2 text-3xl font-bold">Camp Mystic Command Center</h1>
               <p className="mt-2 text-gray-400">Children visible. Actions accountable. Escalations obvious.</p>
             </div>
-
             <div className="flex gap-3">
               <Button onClick={onReplayIntro}>Replay Intro</Button>
               <StatusPill tone="red" className="min-w-[156px]">RED · Active Incident</StatusPill>
@@ -379,9 +473,7 @@ function Dashboard({ timeLeft, onReplayIntro }) {
 
         <nav className="flex flex-wrap gap-3" aria-label="Command center tabs">
           {tabs.map((item) => (
-            <Button key={item} active={tab === item} onClick={() => setTab(item)}>
-              {item[0].toUpperCase() + item.slice(1)}
-            </Button>
+            <Button key={item} active={tab === item} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</Button>
           ))}
         </nav>
 
@@ -397,24 +489,18 @@ function Dashboard({ timeLeft, onReplayIntro }) {
 
 export default function App() {
   const [screen, setScreen] = useState("intro");
-  const [timeLeft, setTimeLeft] = useState(STARTING_MINUTES);
   const [incidentStarted, setIncidentStarted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(STARTING_MINUTES);
 
   useEffect(() => {
     if (!incidentStarted) return undefined;
-
-    const timer = setInterval(() => {
-      setTimeLeft((minutes) => (minutes > 0 ? minutes - 1 : 0));
-    }, COUNTDOWN_INTERVAL_MS);
-
+    const timer = setInterval(() => setTimeLeft((minutes) => (minutes > 0 ? minutes - 1 : 0)), COUNTDOWN_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [incidentStarted]);
 
-  const replayIntro = () => setScreen("intro");
-
   if (screen === "intro") {
     return (
-      <StoryIntro
+      <Intro
         timeLeft={timeLeft}
         startIncident={() => setIncidentStarted(true)}
         onEnterDashboard={() => setScreen("dashboard")}
@@ -422,5 +508,5 @@ export default function App() {
     );
   }
 
-  return <Dashboard timeLeft={timeLeft} onReplayIntro={replayIntro} />;
+  return <Dashboard timeLeft={timeLeft} onReplayIntro={() => setScreen("intro")} />;
 }
