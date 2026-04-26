@@ -1,20 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Sentinel Camp Mystic Demo V11
+ * Sentinel Camp Mystic Demo V12
  * ------------------------------------------------------------
- * V11 upgrades:
- * - Step 2 highlights Transport not responding with system reasoning + recommended action.
- * - Step 4 risk language rewritten for 2AM clarity.
- * - Workflow now has a real demo resolution: Assign Backup Transport.
- * - Workflow resolution updates the dashboard, workflow, audit, timeline, and overview status.
- * - Audit missing roster includes lightweight Locate / Mark Safe actions.
- * - Decision and blocker hierarchy remain strong from V10.
+ * V12 upgrades:
+ * - Audit "Mark Safe" now updates cabin counts and total unaccounted count.
+ * - Workflow has three live Sentinel recommendation loops:
+ *   1) Assign Backup Transport
+ *   2) Send Parent SMS
+ *   3) Alert Local Authorities
+ * - Each recommendation transforms into a resolved state after click.
+ * - Dynamic timeline logs transport, parent SMS, authorities, and mark-safe actions.
+ * - Overview/header/status cards reflect resolved actions.
  */
 
 const MAP_IMAGE_SRC = "/camp-mystic-map.png";
 const STARTING_MINUTES = 25;
 const COUNTDOWN_INTERVAL_MS = 60000;
+const BASE_UNACCOUNTED = 57;
 
 const INTRO_STEPS = [
   {
@@ -73,8 +76,8 @@ const INTRO_STEPS = [
     label: "4 / COMMAND",
     title: "Command Center Ready",
     body: "Full operational visibility: children accounted for, alerts, decisions, and escalation tracking.",
-    metric: "57 UNACCOUNTED",
-    metricCaption: "127 / 184 children accounted",
+    metric: "UNACCOUNTED",
+    metricCaption: "children accounted",
     metricSubcaption: "Access to cabins 2, 3, and 4 may be lost if water rises further. Evacuate immediately.",
     metricTone: "red",
     detailTone: "red",
@@ -88,12 +91,12 @@ const SIGNALS = [
   { icon: "⚠", label: "Flood warning", normal: "None", active: "Active", activeTone: "red" },
 ];
 
-const CHILDREN_GROUPS = [
+const INITIAL_CHILDREN_GROUPS = [
   {
     id: "cabin-3",
     group: "Cabin 3 (Creek Edge)",
-    accounted: "20 / 24",
-    missing: 4,
+    total: 24,
+    accounted: 20,
     status: "Evacuate first",
     tone: "red",
     names: ["Ethan Ramirez", "Sofia Martinez", "Lucas Nguyen", "Ava Johnson"],
@@ -101,8 +104,8 @@ const CHILDREN_GROUPS = [
   {
     id: "cabin-4",
     group: "Cabin 4 (Near Creek)",
-    accounted: "18 / 22",
-    missing: 4,
+    total: 22,
+    accounted: 18,
     status: "Evacuate first",
     tone: "red",
     names: ["Mia Thompson", "Noah Garcia", "Isabella Chen", "Daniel Brooks"],
@@ -110,8 +113,8 @@ const CHILDREN_GROUPS = [
   {
     id: "cabin-2",
     group: "Cabin 2 (Low Area)",
-    accounted: "16 / 20",
-    missing: 4,
+    total: 20,
+    accounted: 16,
     status: "Evacuate first",
     tone: "red",
     names: ["Emma Rodriguez", "Liam Carter", "Olivia Patel", "Mateo Flores"],
@@ -119,8 +122,8 @@ const CHILDREN_GROUPS = [
   {
     id: "cabin-5",
     group: "Cabin 5 (Elevated)",
-    accounted: "24 / 24",
-    missing: 0,
+    total: 24,
+    accounted: 24,
     status: "Safe / hold",
     tone: "green",
     names: [],
@@ -135,7 +138,7 @@ const BASE_ACKNOWLEDGMENTS = [
 
 const BASE_WORKFLOW_TASKS = [
   { id: "evacuate-low-lying", icon: "↗", task: "Evacuate low-lying cabins first", owner: "Cabin Counselors", status: "In Progress", tone: "blue", age: "Active now" },
-  { id: "parent-sms", icon: "✉", task: "Send SMS to parents", owner: "Parent Comms", status: "Ready to Send", tone: "cyan", age: "Queued" },
+  { id: "parent-sms", icon: "✉", task: "Send SMS to parents", owner: "Parent Comms", status: "Queued", tone: "cyan", age: "Queued" },
   { id: "authorities", icon: "⚠", task: "Alert local authorities", owner: "Director", status: "Escalation Recommended", tone: "yellow", age: "Recommended" },
   { id: "buses", icon: "■", task: "Dispatch buses", owner: "Transport", status: "Blocked: No Response", tone: "red", age: "8+ min stuck" },
   { id: "rally-point", icon: "✓", task: "Confirm rally point safety", owner: "Medical Lead", status: "Pending Confirmation", tone: "yellow", age: "Pending" },
@@ -159,47 +162,89 @@ const BASE_LIVE_EVENTS = [
   { step: 1, time: "2:41 AM", text: "Risk elevated to RED", status: "System Alert", tone: "red", icon: "⚡" },
 ];
 
-function buildLiveEvents(transportResolved) {
-  if (!transportResolved) return BASE_LIVE_EVENTS;
-  return [
-    { step: 4, time: "2:50 AM", text: "Backup transport assigned", status: "Resolution Started", tone: "green", icon: "✓" },
-    ...BASE_LIVE_EVENTS,
-  ];
+function countMarkedSafe(markedSafeByCabin) {
+  return Object.values(markedSafeByCabin).reduce((sum, names) => sum + names.length, 0);
 }
 
-function buildTimelineEvents(transportResolved) {
-  if (!transportResolved) return BASE_TIMELINE_EVENTS;
-  return [
-    { time: "3:05 AM", event: "Headcount: 127 / 184", type: "Headcount", tone: "purple", group: "ACTIONS" },
-    { time: "2:52 AM", event: "Low-lying cabins prioritized", type: "Workflow Action", tone: "blue", group: "ACTIONS" },
-    { time: "2:50 AM", event: "Backup transport assigned", type: "Resolution Started", tone: "green", group: "ACTIONS" },
-    { time: "2:49 AM", event: "Transport no response", type: "Escalation", tone: "red", group: "CRITICAL" },
-    { time: "2:45 AM", event: "Counselors partially acknowledged", type: "Partial Response", tone: "yellow", group: "ACTIONS" },
-    { time: "2:43 AM", event: "Director acknowledged", type: "Acknowledged", tone: "green", group: "ACTIONS" },
-    { time: "2:42 AM", event: "Director notified", type: "Notification Sent", tone: "cyan", group: "ACTIONS" },
-    { time: "2:41 AM", event: "Risk elevated to RED", type: "System Alert", tone: "red", group: "CRITICAL" },
-  ];
+function getCabinView(cabin, markedSafeByCabin) {
+  const safeNames = markedSafeByCabin[cabin.id] ?? [];
+  const accounted = Math.min(cabin.accounted + safeNames.length, cabin.total);
+  const missing = Math.max(cabin.total - accounted, 0);
+  return {
+    ...cabin,
+    accounted,
+    missing,
+    accountedText: `${accounted} / ${cabin.total}`,
+    tone: missing === 0 ? "green" : cabin.tone,
+  };
 }
 
-function buildWorkflowTasks(transportResolved) {
-  if (!transportResolved) return BASE_WORKFLOW_TASKS;
-  return BASE_WORKFLOW_TASKS.map((task) => {
-    if (task.id !== "buses") return task;
-    return {
-      ...task,
-      icon: "✓",
-      status: "Backup Assigned",
-      tone: "green",
-      age: "Resolution started",
-      owner: "Backup Transport",
-    };
+function getAllCabinsView(markedSafeByCabin) {
+  return INITIAL_CHILDREN_GROUPS.map((cabin) => getCabinView(cabin, markedSafeByCabin));
+}
+
+function buildLiveEvents(actions) {
+  const resolved = [];
+  if (actions.transportResolved) resolved.push({ step: 4, time: "2:50 AM", text: "Backup transport assigned", status: "Resolution Started", tone: "green", icon: "✓" });
+  if (actions.parentsNotified) resolved.push({ step: 4, time: "2:51 AM", text: "Parent SMS sent", status: "Communications Sent", tone: "green", icon: "✉" });
+  if (actions.authoritiesAlerted) resolved.push({ step: 4, time: "2:52 AM", text: "Local authorities alerted", status: "External Support", tone: "green", icon: "⚠" });
+  return [...resolved.reverse(), ...BASE_LIVE_EVENTS];
+}
+
+function buildTimelineEvents(actions, safeLog, globalUnaccounted) {
+  const dynamic = [];
+
+  if (safeLog.length) {
+    safeLog.forEach((entry, index) => {
+      dynamic.push({
+        time: `3:${String(6 + index).padStart(2, "0")} AM`,
+        event: `${entry.name} marked safe — ${entry.cabin}`,
+        type: "Roster Update",
+        tone: "green",
+        group: "ACTIONS",
+      });
+    });
+    dynamic.push({
+      time: `3:${String(6 + safeLog.length).padStart(2, "0")} AM`,
+      event: `Unaccounted updated: ${globalUnaccounted}`,
+      type: "Headcount",
+      tone: "purple",
+      group: "ACTIONS",
+    });
+  }
+
+  if (actions.authoritiesAlerted) dynamic.push({ time: "2:52 AM", event: "Local authorities alerted", type: "External Support", tone: "green", group: "ACTIONS" });
+  if (actions.parentsNotified) dynamic.push({ time: "2:51 AM", event: "Parent SMS sent", type: "Communications Sent", tone: "green", group: "ACTIONS" });
+  if (actions.transportResolved) dynamic.push({ time: "2:50 AM", event: "Backup transport assigned", type: "Resolution Started", tone: "green", group: "ACTIONS" });
+
+  const seen = new Set();
+  return [...dynamic, ...BASE_TIMELINE_EVENTS].filter((item) => {
+    const key = `${item.time}-${item.event}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
-function buildAcknowledgments(transportResolved) {
-  if (!transportResolved) return BASE_ACKNOWLEDGMENTS;
+function buildWorkflowTasks(actions) {
+  return BASE_WORKFLOW_TASKS.map((task) => {
+    if (task.id === "buses" && actions.transportResolved) {
+      return { ...task, icon: "✓", status: "Backup Assigned", tone: "green", age: "Resolution started", owner: "Backup Transport" };
+    }
+    if (task.id === "parent-sms" && actions.parentsNotified) {
+      return { ...task, icon: "✓", status: "Sent", tone: "green", age: "Sent to guardians", owner: "Parent Comms" };
+    }
+    if (task.id === "authorities" && actions.authoritiesAlerted) {
+      return { ...task, icon: "✓", status: "Authorities Alerted", tone: "green", age: "External response engaged", owner: "Director" };
+    }
+    return task;
+  });
+}
+
+function buildAcknowledgments(actions) {
   return BASE_ACKNOWLEDGMENTS.map((ack) => {
     if (ack.id !== "transport") return ack;
+    if (!actions.transportResolved) return ack;
     return {
       ...ack,
       detail: "Backup transport assigned after no response",
@@ -208,6 +253,16 @@ function buildAcknowledgments(transportResolved) {
       tone: "green",
     };
   });
+}
+
+function allCoreActionsResolved(actions) {
+  return actions.transportResolved && actions.parentsNotified && actions.authoritiesAlerted;
+}
+
+function headerStatus(actions) {
+  if (allCoreActionsResolved(actions)) return { text: "Core Actions In Progress", tone: "green" };
+  if (actions.transportResolved) return { text: "Backup Transport Assigned", tone: "green" };
+  return { text: "RED · Active Incident", tone: "red" };
 }
 
 function textTone(tone) {
@@ -371,7 +426,7 @@ function DecisionCallout() {
 function Radar({ active, large = false, urgent = false }) {
   return (
     <div className="flex items-center justify-center">
-      <div className={`relative ${large ? "h-72 w-72 opacity-80" : "h-56 w-56"} rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"} ${urgent ? "shadow-2xl shadow-red-500/10" : ""}`}>
+      <div className={`relative ${large ? "h-64 w-64 opacity-80" : "h-56 w-56"} rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"} ${urgent ? "shadow-2xl shadow-red-500/10" : ""}`}>
         <div className="absolute inset-8 rounded-full border border-white/10" />
         <div className="absolute inset-20 rounded-full border border-white/10" />
         <div className="absolute inset-32 rounded-full border border-white/10" />
@@ -399,8 +454,8 @@ function SignalRows({ step }) {
   );
 }
 
-function LiveIncidentFeed({ step, transportResolved = false }) {
-  const events = buildLiveEvents(transportResolved).filter((event) => step >= event.step);
+function LiveIncidentFeed({ step, actions }) {
+  const events = buildLiveEvents(actions).filter((event) => step >= event.step);
   if (!events.length) return null;
 
   return (
@@ -411,7 +466,7 @@ function LiveIncidentFeed({ step, transportResolved = false }) {
       </div>
       <div className="space-y-3 text-sm">
         {events.map((event, index) => (
-          <div key={`${event.time}-${event.text}`} className={`grid grid-cols-[30px_80px_1fr_auto] items-center gap-3 rounded-xl border p-3 ${toneClasses(event.tone)} ${index > 1 ? "opacity-75" : ""}`}>
+          <div key={`${event.time}-${event.text}`} className={`grid grid-cols-[30px_80px_1fr_auto] items-center gap-3 rounded-xl border p-3 ${toneClasses(event.tone)} ${index > 2 ? "opacity-75" : ""}`}>
             <div className="font-bold">{event.icon}</div>
             <div>{event.time}</div>
             <div>{event.text}</div>
@@ -423,14 +478,15 @@ function LiveIncidentFeed({ step, transportResolved = false }) {
   );
 }
 
-function OperatorFocusPanel({ transportResolved = false }) {
+function OperatorFocusPanel({ actions }) {
+  const resolved = actions.transportResolved;
   return (
-    <div className={`rounded-2xl border p-6 ${transportResolved ? "border-green-400/25 bg-green-500/10" : "border-red-400/25 bg-red-500/10"}`}>
-      <div className={`mb-3 text-xs font-bold uppercase tracking-[0.25em] ${transportResolved ? "text-green-300" : "text-red-300"}`}>
+    <div className={`rounded-2xl border p-6 ${resolved ? "border-green-400/25 bg-green-500/10" : "border-red-400/25 bg-red-500/10"}`}>
+      <div className={`mb-3 text-xs font-bold uppercase tracking-[0.25em] ${resolved ? "text-green-300" : "text-red-300"}`}>
         Operator Focus
       </div>
-      <div className={`text-4xl font-black leading-tight ${transportResolved ? "text-green-300" : "text-red-300"}`}>
-        {transportResolved ? "Backup transport assigned" : "57 children unaccounted"}
+      <div className={`text-4xl font-black leading-tight ${resolved ? "text-green-300" : "text-red-300"}`}>
+        {resolved ? "Backup transport assigned" : "57 children unaccounted"}
       </div>
       <div className="mt-5 grid gap-4 md:grid-cols-4">
         <div>
@@ -439,7 +495,7 @@ function OperatorFocusPanel({ transportResolved = false }) {
         </div>
         <div>
           <div className="text-xs uppercase tracking-widest text-gray-400">Blocker</div>
-          <div className={`mt-1 font-bold ${transportResolved ? "text-green-300" : "text-red-300"}`}>{transportResolved ? "Resolving" : "Transport"}</div>
+          <div className={`mt-1 font-bold ${resolved ? "text-green-300" : "text-red-300"}`}>{resolved ? "Resolving" : "Transport"}</div>
         </div>
         <div>
           <div className="text-xs uppercase tracking-widest text-gray-400">Known Safe</div>
@@ -454,7 +510,7 @@ function OperatorFocusPanel({ transportResolved = false }) {
   );
 }
 
-function ChildrenStatusCard() {
+function ChildrenStatusCard({ cabins }) {
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between gap-4">
@@ -465,13 +521,13 @@ function ChildrenStatusCard() {
         Visible by cabin so staff know who is safe, who is moving, and who needs help.
       </p>
       <div className="space-y-2">
-        {CHILDREN_GROUPS.map((childGroup) => (
+        {cabins.map((childGroup) => (
           <div key={childGroup.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
             <div>
               <div className="font-semibold">{childGroup.group}</div>
               <div className="text-xs text-gray-400">{childGroup.status}</div>
             </div>
-            <StatusPill tone={childGroup.tone}>{childGroup.accounted}</StatusPill>
+            <StatusPill tone={childGroup.tone}>{childGroup.accountedText}</StatusPill>
           </div>
         ))}
       </div>
@@ -492,7 +548,7 @@ function MapImage({ compact = false }) {
   );
 }
 
-function OverviewScreen({ timeLeft, onOpenMap, transportResolved }) {
+function OverviewScreen({ timeLeft, onOpenMap, actions, cabins, globalUnaccounted }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[0.72fr_1.9fr]">
       <div className="space-y-6">
@@ -506,8 +562,8 @@ function OverviewScreen({ timeLeft, onOpenMap, transportResolved }) {
             </div>
 
             <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4">
-              <div className="text-3xl font-black text-red-300">57 unaccounted</div>
-              <div className="text-gray-300">127 / 184 children accounted</div>
+              <div className="text-3xl font-black text-red-300">{globalUnaccounted} unaccounted</div>
+              <div className="text-gray-300">{184 - globalUnaccounted} / 184 children accounted</div>
             </div>
 
             <div className="rounded-2xl border border-yellow-400/30 bg-yellow-500/10 p-4 shadow-lg shadow-yellow-500/10">
@@ -517,13 +573,19 @@ function OverviewScreen({ timeLeft, onOpenMap, transportResolved }) {
             </div>
 
             <div className="rounded-xl bg-white/5 p-3 text-cyan-300">SMS: Director acknowledged</div>
-            <div className={`rounded-xl p-3 ${transportResolved ? "bg-green-500/10 text-green-300" : "bg-white/5 text-red-300"}`}>
-              {transportResolved ? "Transport: backup assigned" : "SMS: Transport not responding"}
+            <div className={`rounded-xl p-3 ${actions.transportResolved ? "bg-green-500/10 text-green-300" : "bg-white/5 text-red-300"}`}>
+              {actions.transportResolved ? "Transport: backup assigned" : "SMS: Transport not responding"}
+            </div>
+            <div className={`rounded-xl p-3 ${actions.parentsNotified ? "bg-green-500/10 text-green-300" : "bg-white/5 text-yellow-300"}`}>
+              {actions.parentsNotified ? "Parents: SMS sent" : "Parents: notification queued"}
+            </div>
+            <div className={`rounded-xl p-3 ${actions.authoritiesAlerted ? "bg-green-500/10 text-green-300" : "bg-white/5 text-yellow-300"}`}>
+              {actions.authoritiesAlerted ? "Authorities: alerted" : "Authorities: alert recommended"}
             </div>
           </div>
         </Card>
 
-        <ChildrenStatusCard />
+        <ChildrenStatusCard cabins={cabins} />
       </div>
 
       <Card className="p-4">
@@ -552,13 +614,9 @@ function MapScreen() {
   );
 }
 
-function MissingCabinRow({ group }) {
+function MissingCabinRow({ group, markedSafeByCabin, onMarkSafe }) {
   const [open, setOpen] = useState(false);
-  const [markedSafe, setMarkedSafe] = useState([]);
-
-  const toggleSafe = (name) => {
-    setMarkedSafe((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
-  };
+  const safeNames = markedSafeByCabin[group.id] ?? [];
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-3">
@@ -567,12 +625,12 @@ function MissingCabinRow({ group }) {
           <div className="font-semibold">{group.group}</div>
           <div className="text-xs text-gray-400">{group.status}</div>
         </div>
-        <StatusPill tone={group.tone}>{group.accounted}</StatusPill>
+        <StatusPill tone={group.tone}>{group.accountedText}</StatusPill>
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
           className={group.missing > 0 ? "font-bold text-red-300 hover:text-red-200" : "font-bold text-green-300"}
-          disabled={group.missing === 0}
+          disabled={group.names.length === 0}
         >
           {group.missing} missing
         </button>
@@ -585,13 +643,18 @@ function MissingCabinRow({ group }) {
           </div>
           <div className="grid gap-2 md:grid-cols-2">
             {group.names.map((name) => {
-              const safe = markedSafe.includes(name);
+              const safe = safeNames.includes(name);
               return (
-                <div key={name} className={`rounded-lg border p-2 ${safe ? "border-green-400/20 bg-green-500/10 text-green-200" : "border-white/10 bg-black/10"}`}>
+                <div key={name} className={`rounded-lg border p-2 ${safe ? "border-green-400/30 bg-green-500/15 text-green-100" : "border-white/10 bg-black/10"}`}>
                   <div className="font-semibold">• {name}</div>
                   <div className="mt-2 flex gap-2">
                     <button type="button" className="rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-bold text-cyan-300">Locate</button>
-                    <button type="button" onClick={() => toggleSafe(name)} className={`rounded-md px-2 py-1 text-xs font-bold ${safe ? "bg-green-400 text-black" : "bg-green-400/10 text-green-300"}`}>
+                    <button
+                      type="button"
+                      onClick={() => onMarkSafe(group.id, group.group, name)}
+                      disabled={safe}
+                      className={`rounded-md px-2 py-1 text-xs font-bold ${safe ? "bg-green-400 text-black" : "bg-green-400/10 text-green-300 hover:bg-green-400 hover:text-black"}`}
+                    >
                       {safe ? "Marked Safe" : "Mark Safe"}
                     </button>
                   </div>
@@ -605,8 +668,8 @@ function MissingCabinRow({ group }) {
   );
 }
 
-function AuditScreen({ transportResolved, onAssignBackup }) {
-  const acknowledgments = buildAcknowledgments(transportResolved);
+function AuditScreen({ actions, onAssignBackup, cabins, markedSafeByCabin, onMarkSafe, globalUnaccounted }) {
+  const acknowledgments = buildAcknowledgments(actions);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
@@ -614,17 +677,17 @@ function AuditScreen({ transportResolved, onAssignBackup }) {
         <h2 className="text-xl font-bold">Acknowledgments</h2>
         <p className="mb-4 text-gray-400">Who received the signal, when, and who has not responded.</p>
 
-        <div className={`mb-4 rounded-2xl border p-5 shadow-2xl ring-1 ${transportResolved ? "border-green-400/30 bg-green-500/10 shadow-green-500/10 ring-green-300/10" : "border-red-400/30 bg-red-500/10 shadow-red-500/10 ring-red-300/10"}`}>
-          <div className={`text-xs font-bold uppercase tracking-[0.25em] ${transportResolved ? "text-green-300" : "text-red-300"}`}>
-            {transportResolved ? "Resolution Started" : "Critical Gap"}
+        <div className={`mb-4 rounded-2xl border p-5 shadow-2xl ring-1 ${actions.transportResolved ? "border-green-400/30 bg-green-500/10 shadow-green-500/10 ring-green-300/10" : "border-red-400/30 bg-red-500/10 shadow-red-500/10 ring-red-300/10"}`}>
+          <div className={`text-xs font-bold uppercase tracking-[0.25em] ${actions.transportResolved ? "text-green-300" : "text-red-300"}`}>
+            {actions.transportResolved ? "Resolution Started" : "Critical Gap"}
           </div>
-          <div className={`mt-2 text-3xl font-black ${transportResolved ? "text-green-300" : "text-red-300"}`}>
-            {transportResolved ? "Backup transport assigned" : "Transport has not responded"}
+          <div className={`mt-2 text-3xl font-black ${actions.transportResolved ? "text-green-300" : "text-red-300"}`}>
+            {actions.transportResolved ? "Backup transport assigned" : "Transport has not responded"}
           </div>
           <div className="mt-1 text-sm text-gray-300">
-            {transportResolved ? "Escalation converted into an active recovery path." : "No response after escalation window · 8+ min"}
+            {actions.transportResolved ? "Escalation converted into an active recovery path." : "No response after escalation window · 8+ min"}
           </div>
-          {!transportResolved && (
+          {!actions.transportResolved && (
             <button
               type="button"
               onClick={onAssignBackup}
@@ -651,61 +714,125 @@ function AuditScreen({ transportResolved, onAssignBackup }) {
       <Card>
         <div className="mb-3 flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-cyan-300">Unaccounted by Cabin</h2>
-          <StatusPill tone="red">57 total</StatusPill>
+          <StatusPill tone={globalUnaccounted === 0 ? "green" : "red"}>{globalUnaccounted} total</StatusPill>
         </div>
         <p className="mb-4 text-sm text-gray-400">
           Cabin-level detail keeps the UI actionable. Click missing counts to view roster detail.
         </p>
         <div className="space-y-2">
-          {CHILDREN_GROUPS.map((group) => <MissingCabinRow key={group.id} group={group} />)}
+          {cabins.map((group) => (
+            <MissingCabinRow key={group.id} group={group} markedSafeByCabin={markedSafeByCabin} onMarkSafe={onMarkSafe} />
+          ))}
         </div>
       </Card>
     </div>
   );
 }
 
-function WorkflowScreen({ transportResolved, onAssignBackup }) {
-  const workflowTasks = buildWorkflowTasks(transportResolved);
+function RecommendationCard({ title, severity, problem, risk, recommendation, resolved, resolvedTitle, resolvedBody, buttonLabel, onResolve, tone, icon }) {
+  return (
+    <div className={`rounded-2xl border p-4 transition ${resolved ? "border-green-400/30 bg-green-500/10" : toneClasses(tone)}`}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className={`text-xs font-black uppercase tracking-[0.25em] ${resolved ? "text-green-300" : textTone(tone)}`}>
+            {resolved ? "Resolved" : severity}
+          </div>
+          <div className={`mt-2 text-2xl font-black ${resolved ? "text-green-300" : textTone(tone)}`}>
+            {resolved ? resolvedTitle : `${icon} ${title}`}
+          </div>
+          <p className="mt-2 text-sm text-gray-200">{resolved ? resolvedBody : problem}</p>
+          {!resolved && <p className="mt-1 text-sm text-gray-400">{risk}</p>}
+          {!resolved && <p className="mt-3 text-sm font-semibold text-white">Recommended: {recommendation}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={onResolve}
+          disabled={resolved}
+          className={`rounded-xl px-4 py-2 text-sm font-black transition ${resolved ? "bg-green-400/20 text-green-300" : tone === "red" ? "bg-red-400 text-black hover:bg-red-300" : "bg-yellow-300 text-black hover:bg-yellow-200"}`}
+        >
+          {resolved ? "Complete" : buttonLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SentinelRecommendations({ actions, onAssignBackup, onSendParentSms, onAlertAuthorities }) {
+  return (
+    <div className="mb-6 rounded-3xl border border-cyan-400/15 bg-cyan-400/[0.035] p-5">
+      <div className="mb-4">
+        <div className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">Sentinel Recommendations</div>
+        <p className="mt-2 text-sm text-gray-400">Ranked actions based on active risk, blocked dependencies, and communication gaps.</p>
+      </div>
+      <div className="grid gap-3">
+        <RecommendationCard
+          title="Transport failure"
+          severity="Critical"
+          problem="Transport has not responded within the threshold."
+          risk="Evacuation movement may be delayed while low cabins remain at risk."
+          recommendation="assign backup transport immediately."
+          resolved={actions.transportResolved}
+          resolvedTitle="Backup transport assigned"
+          resolvedBody="Dispatch is now routed to backup transport. Continue cabin evacuation and confirm rally point safety."
+          buttonLabel="Assign Backup Transport"
+          onResolve={onAssignBackup}
+          tone="red"
+          icon="🚨"
+        />
+        <RecommendationCard
+          title="Parent communication gap"
+          severity="High"
+          problem="Parent notifications have not been sent."
+          risk="Inbound call volume and misinformation may spike if families are not updated."
+          recommendation="send parent SMS now."
+          resolved={actions.parentsNotified}
+          resolvedTitle="Parent notifications sent"
+          resolvedBody="All guardians have been sent the approved incident update by SMS."
+          buttonLabel="Send Parent SMS"
+          onResolve={onSendParentSms}
+          tone="yellow"
+          icon="✉️"
+        />
+        <RecommendationCard
+          title="Authorities not alerted"
+          severity="High"
+          problem="Local authorities have not been notified."
+          risk="External response coordination may be delayed if escalation waits."
+          recommendation="alert local authorities immediately."
+          resolved={actions.authoritiesAlerted}
+          resolvedTitle="Local authorities alerted"
+          resolvedBody="External response coordination has been engaged and logged."
+          buttonLabel="Alert Authorities"
+          onResolve={onAlertAuthorities}
+          tone="yellow"
+          icon="⚠️"
+        />
+      </div>
+    </div>
+  );
+}
+
+function WorkflowScreen({ actions, onAssignBackup, onSendParentSms, onAlertAuthorities }) {
+  const workflowTasks = buildWorkflowTasks(actions);
 
   return (
     <Card>
       <h2 className="text-xl font-bold">Active Workflow</h2>
-      <p className="mb-4 text-gray-400">Pending actions and escalation logic.</p>
+      <p className="mb-4 text-gray-400">Pending actions, escalation logic, and Sentinel-recommended resolutions.</p>
 
-      <div className={`mb-5 rounded-2xl border p-5 shadow-2xl ring-1 ${transportResolved ? "border-green-400/30 bg-green-500/10 shadow-green-500/10 ring-green-300/10" : "border-red-400/30 bg-red-500/10 shadow-red-500/10 ring-red-300/10"}`}>
-        <div className={`text-xs font-bold uppercase tracking-[0.25em] ${transportResolved ? "text-green-300" : "text-red-300"}`}>
-          {transportResolved ? "Resolution Started" : "Blocker"}
-        </div>
-        <div className={`mt-2 text-3xl font-black ${transportResolved ? "text-green-300" : "text-red-300"}`}>
-          {transportResolved ? "Backup transport assigned" : "Transport — no response"}
-        </div>
-        <div className="mt-1 text-sm text-gray-300">
-          {transportResolved
-            ? "Dispatch is now routed to backup transport. Continue cabin evacuation and confirm rally point safety."
-            : "Dispatch buses is stuck for 8+ minutes. Escalate or assign backup transport."}
-        </div>
-        {!transportResolved && (
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm font-semibold text-red-100">
-              Recommended: assign backup transport and notify the director.
-            </div>
-            <button
-              type="button"
-              onClick={onAssignBackup}
-              className="rounded-xl bg-red-400 px-5 py-3 text-sm font-black text-black transition hover:scale-[1.02] hover:bg-red-300"
-            >
-              Assign Backup Transport
-            </button>
-          </div>
-        )}
-      </div>
+      <SentinelRecommendations
+        actions={actions}
+        onAssignBackup={onAssignBackup}
+        onSendParentSms={onSendParentSms}
+        onAlertAuthorities={onAlertAuthorities}
+      />
 
       <div className="space-y-2">
         {workflowTasks.map((task, index) => {
-          const isResolvedTransport = task.id === "buses" && transportResolved;
-          const isBlockedTransport = task.id === "buses" && !transportResolved;
+          const isResolved = ["buses", "parent-sms", "authorities"].includes(task.id) && task.tone === "green";
+          const isBlockedTransport = task.id === "buses" && !actions.transportResolved;
           return (
-            <div key={task.id} className={`grid gap-3 rounded-xl border p-3 md:grid-cols-[48px_1.2fr_0.8fr_0.7fr_0.9fr] md:items-center ${isResolvedTransport ? "border-green-400/25 bg-green-500/10" : isBlockedTransport ? "border-red-400/30 bg-red-500/10" : index % 2 === 0 ? "border-white/10 bg-white/[0.065]" : "border-white/10 bg-white/[0.035]"}`}>
+            <div key={task.id} className={`grid gap-3 rounded-xl border p-3 md:grid-cols-[48px_1.2fr_0.8fr_0.7fr_0.9fr] md:items-center ${isResolved ? "border-green-400/25 bg-green-500/10" : isBlockedTransport ? "border-red-400/30 bg-red-500/10" : index % 2 === 0 ? "border-white/10 bg-white/[0.065]" : "border-white/10 bg-white/[0.035]"}`}>
               <div className={textTone(task.tone)}>{task.icon}</div>
               <div className="font-semibold">{task.task}</div>
               <div className="text-sm text-gray-400">Owner: {task.owner}</div>
@@ -723,7 +850,7 @@ function TimelineList({ events }) {
   return (
     <div className="relative space-y-3 pl-6 before:absolute before:left-2 before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-white/10">
       {events.map(({ time, event, type, tone }) => (
-        <div key={`${time}-${event}`} className="relative grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[100px_1fr_170px] md:items-center">
+        <div key={`${time}-${event}`} className="relative grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[100px_1fr_190px] md:items-center">
           <div className={`absolute -left-[21px] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full ${tone === "red" ? "bg-red-400" : tone === "green" ? "bg-green-400" : tone === "yellow" ? "bg-yellow-300" : "bg-cyan-300"}`} />
           <div className="text-cyan-300">{time}</div>
           <div>{event}</div>
@@ -734,8 +861,8 @@ function TimelineList({ events }) {
   );
 }
 
-function TimelineScreen({ transportResolved }) {
-  const timelineEvents = buildTimelineEvents(transportResolved);
+function TimelineScreen({ actions, safeLog, globalUnaccounted }) {
+  const timelineEvents = buildTimelineEvents(actions, safeLog, globalUnaccounted);
   const criticalEvents = timelineEvents.filter((event) => event.group === "CRITICAL");
   const actionEvents = timelineEvents.filter((event) => event.group !== "CRITICAL");
 
@@ -757,26 +884,26 @@ function TimelineScreen({ transportResolved }) {
   );
 }
 
-function RightPanel({ step, current, rightMetric, active, timeLeft, transportResolved }) {
+function RightPanel({ step, current, rightMetric, active, timeLeft, actions, globalUnaccounted }) {
   if (current.id === "command") {
     return (
       <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-8">
         <div className="text-right text-lg text-gray-400">Camp Mystic Scenario</div>
 
         <div className="mt-8 text-6xl font-black text-red-400 animate-pulse">
-          57 UNACCOUNTED
+          {globalUnaccounted} UNACCOUNTED
         </div>
-        <div className="mt-2 text-xl text-gray-300">127 / 184 children accounted</div>
+        <div className="mt-2 text-xl text-gray-300">{184 - globalUnaccounted} / 184 children accounted</div>
         <p className="mt-2 text-sm font-semibold text-red-100">
           Access to cabins 2, 3, and 4 may be lost if water rises further. Evacuate immediately.
         </p>
 
         <div className="mt-10">
-          <OperatorFocusPanel transportResolved={transportResolved} />
+          <OperatorFocusPanel actions={actions} />
         </div>
 
         <div className="mt-10">
-          <LiveIncidentFeed step={step} transportResolved={transportResolved} />
+          <LiveIncidentFeed step={step} actions={actions} />
         </div>
       </div>
     );
@@ -801,18 +928,19 @@ function RightPanel({ step, current, rightMetric, active, timeLeft, transportRes
           {current.id !== "monitor" && <SignalRows step={step} />}
         </div>
 
-        {current.id === "monitor" ? <SignalRows step={step} /> : <LiveIncidentFeed step={step} transportResolved={transportResolved} />}
+        {current.id === "monitor" ? <SignalRows step={step} /> : <LiveIncidentFeed step={step} actions={actions} />}
       </div>
     </div>
   );
 }
 
-function Intro({ onEnterDashboard, timeLeft, startIncident, transportResolved, onAssignBackup }) {
+function Intro({ onEnterDashboard, timeLeft, startIncident, actions, onAssignBackup, globalUnaccounted }) {
   const [step, setStep] = useState(0);
   const current = INTRO_STEPS[step];
   const active = step > 0;
   const isCountdownStep = current.metric === "COUNTDOWN";
-  const rightMetric = isCountdownStep ? `${timeLeft} MIN` : current.metric;
+  const isUnaccountedStep = current.metric === "UNACCOUNTED";
+  const rightMetric = isCountdownStep ? `${timeLeft} MIN` : isUnaccountedStep ? `${globalUnaccounted} UNACCOUNTED` : current.metric;
 
   const handleNext = () => {
     if (step === 0) startIncident();
@@ -862,7 +990,7 @@ function Intro({ onEnterDashboard, timeLeft, startIncident, transportResolved, o
                 )}
 
                 {current.id === "notify" && (
-                  <TransportRecommendation onAssignBackup={onAssignBackup} assigned={transportResolved} />
+                  <TransportRecommendation onAssignBackup={onAssignBackup} assigned={actions.transportResolved} />
                 )}
               </div>
 
@@ -881,7 +1009,8 @@ function Intro({ onEnterDashboard, timeLeft, startIncident, transportResolved, o
             rightMetric={rightMetric}
             active={active}
             timeLeft={timeLeft}
-            transportResolved={transportResolved}
+            actions={actions}
+            globalUnaccounted={globalUnaccounted}
           />
         </div>
       </div>
@@ -889,9 +1018,10 @@ function Intro({ onEnterDashboard, timeLeft, startIncident, transportResolved, o
   );
 }
 
-function Dashboard({ timeLeft, onReplayIntro, transportResolved, onAssignBackup }) {
+function Dashboard({ timeLeft, onReplayIntro, actions, actionHandlers, cabins, markedSafeByCabin, onMarkSafe, safeLog, globalUnaccounted }) {
   const [tab, setTab] = useState("overview");
   const tabs = ["overview", "map", "audit", "workflow", "timeline"];
+  const status = headerStatus(actions);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.1),_transparent_25%),radial-gradient(circle_at_bottom_right,_rgba(239,68,68,0.1),_transparent_25%),linear-gradient(180deg,_#020617,_#000)] p-6 text-white">
@@ -905,8 +1035,8 @@ function Dashboard({ timeLeft, onReplayIntro, transportResolved, onAssignBackup 
             </div>
             <div className="flex gap-3">
               <Button onClick={onReplayIntro}>Replay Intro</Button>
-              <StatusPill tone={transportResolved ? "green" : "red"} className="min-w-[156px]">
-                {transportResolved ? "Backup Transport Assigned" : "RED · Active Incident"}
+              <StatusPill tone={status.tone} className="min-w-[176px]">
+                {status.text}
               </StatusPill>
             </div>
           </div>
@@ -920,11 +1050,27 @@ function Dashboard({ timeLeft, onReplayIntro, transportResolved, onAssignBackup 
           ))}
         </nav>
 
-        {tab === "overview" && <OverviewScreen timeLeft={timeLeft} onOpenMap={() => setTab("map")} transportResolved={transportResolved} />}
+        {tab === "overview" && <OverviewScreen timeLeft={timeLeft} onOpenMap={() => setTab("map")} actions={actions} cabins={cabins} globalUnaccounted={globalUnaccounted} />}
         {tab === "map" && <MapScreen />}
-        {tab === "audit" && <AuditScreen transportResolved={transportResolved} onAssignBackup={onAssignBackup} />}
-        {tab === "workflow" && <WorkflowScreen transportResolved={transportResolved} onAssignBackup={onAssignBackup} />}
-        {tab === "timeline" && <TimelineScreen transportResolved={transportResolved} />}
+        {tab === "audit" && (
+          <AuditScreen
+            actions={actions}
+            onAssignBackup={actionHandlers.assignBackup}
+            cabins={cabins}
+            markedSafeByCabin={markedSafeByCabin}
+            onMarkSafe={onMarkSafe}
+            globalUnaccounted={globalUnaccounted}
+          />
+        )}
+        {tab === "workflow" && (
+          <WorkflowScreen
+            actions={actions}
+            onAssignBackup={actionHandlers.assignBackup}
+            onSendParentSms={actionHandlers.sendParentSms}
+            onAlertAuthorities={actionHandlers.alertAuthorities}
+          />
+        )}
+        {tab === "timeline" && <TimelineScreen actions={actions} safeLog={safeLog} globalUnaccounted={globalUnaccounted} />}
       </div>
     </main>
   );
@@ -934,7 +1080,13 @@ export default function App() {
   const [screen, setScreen] = useState("intro");
   const [incidentStarted, setIncidentStarted] = useState(false);
   const [timeLeft, setTimeLeft] = useState(STARTING_MINUTES);
-  const [transportResolved, setTransportResolved] = useState(false);
+  const [actions, setActions] = useState({
+    transportResolved: false,
+    parentsNotified: false,
+    authoritiesAlerted: false,
+  });
+  const [markedSafeByCabin, setMarkedSafeByCabin] = useState({});
+  const [safeLog, setSafeLog] = useState([]);
 
   useEffect(() => {
     if (!incidentStarted) return undefined;
@@ -944,12 +1096,42 @@ export default function App() {
     return () => clearInterval(timer);
   }, [incidentStarted]);
 
-  const handleAssignBackup = () => {
-    setTransportResolved(true);
+  const cabins = useMemo(() => getAllCabinsView(markedSafeByCabin), [markedSafeByCabin]);
+  const globalUnaccounted = Math.max(BASE_UNACCOUNTED - countMarkedSafe(markedSafeByCabin), 0);
+
+  const assignBackup = () => {
+    setActions((current) => ({ ...current, transportResolved: true }));
+  };
+
+  const sendParentSms = () => {
+    setActions((current) => ({ ...current, parentsNotified: true }));
+  };
+
+  const alertAuthorities = () => {
+    setActions((current) => ({ ...current, authoritiesAlerted: true }));
+  };
+
+  const markSafe = (cabinId, cabinName, name) => {
+    setMarkedSafeByCabin((current) => {
+      const existing = current[cabinId] ?? [];
+      if (existing.includes(name)) return current;
+      return { ...current, [cabinId]: [...existing, name] };
+    });
+
+    setSafeLog((current) => {
+      if (current.some((entry) => entry.name === name && entry.cabin === cabinName)) return current;
+      return [{ name, cabin: cabinName }, ...current];
+    });
   };
 
   const handleReplayIntro = () => {
     setScreen("intro");
+  };
+
+  const actionHandlers = {
+    assignBackup,
+    sendParentSms,
+    alertAuthorities,
   };
 
   if (screen === "intro") {
@@ -958,8 +1140,9 @@ export default function App() {
         timeLeft={timeLeft}
         startIncident={() => setIncidentStarted(true)}
         onEnterDashboard={() => setScreen("dashboard")}
-        transportResolved={transportResolved}
-        onAssignBackup={handleAssignBackup}
+        actions={actions}
+        onAssignBackup={assignBackup}
+        globalUnaccounted={globalUnaccounted}
       />
     );
   }
@@ -968,8 +1151,13 @@ export default function App() {
     <Dashboard
       timeLeft={timeLeft}
       onReplayIntro={handleReplayIntro}
-      transportResolved={transportResolved}
-      onAssignBackup={handleAssignBackup}
+      actions={actions}
+      actionHandlers={actionHandlers}
+      cabins={cabins}
+      markedSafeByCabin={markedSafeByCabin}
+      onMarkSafe={markSafe}
+      safeLog={safeLog}
+      globalUnaccounted={globalUnaccounted}
     />
   );
 }
