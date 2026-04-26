@@ -16,8 +16,8 @@ import React, { useEffect, useMemo, useState } from "react";
  */
 
 const MAP_IMAGE_SRC = "/camp-mystic-map.png";
-const STARTING_MINUTES = 34;
-const COUNTDOWN_INTERVAL_MS = 5000;
+const STARTING_MINUTES = 23;
+const COUNTDOWN_INTERVAL_MS = 60000;
 
 const INTRO_STEPS = [
   {
@@ -25,8 +25,9 @@ const INTRO_STEPS = [
     label: "0 / MONITORING",
     title: "Monitoring Active",
     body: "All systems normal. Sentinel is watching the river corridor, cabins, and personnel.",
-    metric: "READY",
-    metricTone: "cyan",
+    metric: "ALL CLEAR",
+    metricCaption: "No active risk detected",
+    metricTone: "green",
     detailTone: "green",
     detailItems: ["System Armed", "Sensors Online", "No Active Incident", "Monitoring River Corridor"],
   },
@@ -36,16 +37,18 @@ const INTRO_STEPS = [
     title: "Alert Triggered",
     body: "At 2:41 AM, Sentinel detects multiple signals at once: flash flood warning, rising water, and rainfall intensity.",
     metric: "RED",
+    metricCaption: "Flash flood risk detected",
     metricTone: "red",
     detailTone: "red",
-    detailItems: ["River rising rapidly", "Rainfall intensity high", "Flood warning active", "Risk elevated to RED"],
+    detailItems: ["River rising rapidly", "Rainfall intensity high", "Flood warning active", "Escalation triggered"],
   },
   {
     id: "notify",
     label: "2 / NOTIFY",
     title: "Director Notified",
     body: "The director and critical roles receive the incident alert immediately. The system tracks acknowledgment.",
-    metric: "2:43 AM",
+    metric: "25 MIN",
+    metricCaption: "Estimated action window",
     metricTone: "cyan",
     detailTone: "cyan",
     detailItems: ["SMS delivered", "Director acknowledged", "Counselors pending", "Transport not responding"],
@@ -55,7 +58,8 @@ const INTRO_STEPS = [
     label: "3 / DECIDE",
     title: "Evacuation Decision",
     body: "Evacuate low-lying cabins first. Move children toward higher ground.",
-    metric: "23 min",
+    metric: "COUNTDOWN",
+    metricCaption: "Delay increases risk",
     metricTone: "cyan",
     detailTone: "yellow",
     detailItems: ["Low cabins prioritized", "Move toward rally point", "Bridge risk under watch", "Delay increases risk"],
@@ -65,10 +69,11 @@ const INTRO_STEPS = [
     label: "4 / COMMAND",
     title: "Command Center Ready",
     body: "Full operational visibility: children accounted for, alerts, decisions, and escalation tracking.",
-    metric: "127 / 184",
+    metric: "57 UNACCOUNTED",
+    metricCaption: "127 / 184 children accounted",
     metricTone: "red",
     detailTone: "red",
-    detailItems: ["Children status visible", "Map risk visible", "Actions assigned", "Escalations obvious"],
+    detailItems: ["Focus: Cabins 2, 3, 4", "Blocker: Transport", "Safe: Cabin 5", "Next: Assign owners"],
   },
 ];
 
@@ -242,7 +247,7 @@ function EventStack({ step }) {
     <div className="mt-6 space-y-2 text-sm">
       {step > 0 && (
         <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-red-300">
-          Alert: Flash flood risk elevated to RED
+          Alert: River rising + heavy rainfall = high flood risk
         </div>
       )}
       {step > 1 && (
@@ -252,7 +257,7 @@ function EventStack({ step }) {
       )}
       {step > 2 && (
         <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl text-yellow-300">
-          Decision: Evacuate low cabins
+          Decision: Evacuate low cabins first
         </div>
       )}
       {step > 3 && (
@@ -260,6 +265,34 @@ function EventStack({ step }) {
           Escalation: Transport not responding
         </div>
       )}
+    </div>
+  );
+}
+
+function CommandFocusPanel({ step }) {
+  if (step < 4) return null;
+
+  return (
+    <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm">
+      <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-red-300">Operator Focus</div>
+      <div className="space-y-2">
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-300">Unaccounted</span>
+          <span className="font-bold text-red-300">57 children</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-300">Priority</span>
+          <span className="font-bold text-yellow-300">Cabins 2, 3, 4</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-300">Blocker</span>
+          <span className="font-bold text-red-300">Transport no response</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-300">Known safe</span>
+          <span className="font-bold text-green-300">Cabin 5: 24 / 24</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -394,6 +427,8 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
   const [step, setStep] = useState(0);
   const current = INTRO_STEPS[step];
   const active = step > 0;
+  const rightMetric = current.metric === "COUNTDOWN" ? `${timeLeft} MIN` : current.metric;
+  const rightCaption = current.metricCaption;
 
   const handleNext = () => {
     if (step === 0) startIncident();
@@ -410,7 +445,9 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
         <div className="border border-white/10 rounded-3xl p-8 flex flex-col justify-between bg-slate-950/80">
           <div>
             <div className="text-xs text-cyan-300 tracking-widest">SENTINEL · CAMP MYSTIC SCENARIO</div>
-            <h1 className="text-5xl font-black mt-4 leading-tight">If Camp Mystic had Sentinel, this is how the first minutes would look.</h1>
+            <h1 className="text-5xl font-black mt-4 leading-tight">
+              If Camp Mystic had Sentinel, this is how the first minutes would look.
+            </h1>
             <p className="mt-4 text-gray-400">The warning is not the product. The action is the product.</p>
 
             <StepCircles step={step} />
@@ -419,7 +456,7 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
               <div className="flex items-center justify-between gap-4">
                 <div className="text-cyan-300 text-sm font-semibold">{current.label}</div>
                 <StatusPill tone={current.metricTone === "red" ? "red" : current.metricTone === "cyan" ? "cyan" : "green"}>
-                  {step === 3 ? timeLeft + " min" : current.metric}
+                  {rightMetric}
                 </StatusPill>
               </div>
               <div className="text-3xl font-black mt-4">{current.title}</div>
@@ -438,12 +475,14 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
         <div className="border border-white/10 rounded-3xl p-8 flex flex-col justify-center bg-slate-950/80">
           <div className="text-right text-sm text-gray-400">Camp Mystic Scenario</div>
           <div className={`text-6xl font-black mt-6 ${textTone(current.metricTone)} ${current.metricTone === "red" ? "animate-pulse" : ""}`}>
-            {step === 3 ? timeLeft + " min" : current.metric}
+            {rightMetric}
           </div>
+          <div className="mt-2 text-sm text-gray-400">{rightCaption}</div>
 
           <Radar active={active} />
           <SignalRows step={step} />
           <EventStack step={step} />
+          <CommandFocusPanel step={step} />
         </div>
       </div>
     </main>
