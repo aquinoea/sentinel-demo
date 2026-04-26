@@ -1,18 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
- * Sentinel Camp Mystic Demo V6
+ * Sentinel Camp Mystic Demo V7
  * ------------------------------------------------------------
- * Direction:
- * - Uses the clean V4 intro layout you liked.
- * - Adds V5-style numbered step circles for clarity.
- * - Keeps colored supporting detail under each step card.
- * - Restores the better right-side event bars.
- * - Includes the full clickable dashboard after the intro.
- *
- * Requirements:
- * 1. Put your map image at: public/camp-mystic-map.png
- * 2. src/index.css should contain only: @import "tailwindcss";
+ * Changes from V6:
+ * - New separated intro headline section.
+ * - Hybrid title:
+ *   "Real-time decisions when minutes matter."
+ *   + Camp Mystic scenario subtitle.
+ * - Step circles centered globally.
+ * - Left/right intro panels preserved.
+ * - Right panel upgraded with signal cards and progressive event timeline.
+ * - Dashboard remains included and clickable.
  */
 
 const MAP_IMAGE_SRC = "/camp-mystic-map.png";
@@ -78,9 +77,9 @@ const INTRO_STEPS = [
 ];
 
 const SIGNALS = [
-  { label: "River level", normal: "Normal", active: "Rising", activeTone: "red" },
-  { label: "Rainfall", normal: "Stable", active: "High", activeTone: "yellow" },
-  { label: "Flood warning", normal: "None", active: "Active", activeTone: "red" },
+  { icon: "≋", label: "River level", normal: "Normal", active: "Rising", activeTone: "red" },
+  { icon: "☔", label: "Rainfall", normal: "Stable", active: "High", activeTone: "yellow" },
+  { icon: "⚠", label: "Flood warning", normal: "None", active: "Active", activeTone: "red" },
 ];
 
 const CHILDREN_GROUPS = [
@@ -183,18 +182,18 @@ function StatusPill({ children, tone = "gray", className = "" }) {
 
 function StepCircles({ step }) {
   return (
-    <div className="mt-7 flex items-center gap-3">
+    <div className="flex items-center justify-center gap-3">
       {INTRO_STEPS.map((item, index) => (
         <div key={item.id} className="flex items-center gap-3">
           <div
-            className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition ${
-              index <= step ? "bg-cyan-400 text-black" : "bg-white/10 text-gray-400"
+            className={`flex h-12 w-12 items-center justify-center rounded-full text-base font-bold transition ${
+              index <= step ? "bg-cyan-400 text-black shadow-lg shadow-cyan-400/20" : "bg-white/10 text-gray-400"
             }`}
           >
             {index}
           </div>
           {index < INTRO_STEPS.length - 1 && (
-            <div className={`h-px w-9 ${index < step ? "bg-cyan-300" : "bg-white/10"}`} />
+            <div className={`h-px w-16 ${index < step ? "bg-cyan-300" : "bg-white/15"}`} />
           )}
         </div>
       ))}
@@ -214,7 +213,7 @@ function DetailGrid({ items, tone }) {
 
 function Radar({ active }) {
   return (
-    <div className="flex justify-center mt-8">
+    <div className="flex justify-center">
       <div className={`relative h-64 w-64 rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"}`}>
         <div className="absolute inset-6 border border-white/10 rounded-full" />
         <div className="absolute inset-14 border border-white/10 rounded-full" />
@@ -229,11 +228,12 @@ function SignalRows({ step }) {
   const active = step > 0;
 
   return (
-    <div className="mt-8 space-y-2 text-sm">
+    <div className="space-y-3 text-sm">
       {SIGNALS.map((signal) => (
-        <div key={signal.label} className="flex justify-between bg-white/5 p-3 rounded-xl">
+        <div key={signal.label} className="grid grid-cols-[44px_1fr_auto] items-center gap-3 rounded-2xl bg-white/5 p-4">
+          <div className={`text-2xl ${active ? textTone(signal.activeTone) : "text-cyan-300"}`}>{signal.icon}</div>
           <span>{signal.label}</span>
-          <span className={active ? textTone(signal.activeTone) : "text-green-400"}>
+          <span className={`font-semibold ${active ? textTone(signal.activeTone) : "text-green-400"}`}>
             {active ? signal.active : signal.normal}
           </span>
         </div>
@@ -243,28 +243,26 @@ function SignalRows({ step }) {
 }
 
 function EventStack({ step }) {
+  const events = [
+    { show: step > 0, time: "2:41 AM", text: "Risk elevated to RED", status: "System Alert", tone: "red", icon: "⚡" },
+    { show: step > 1, time: "2:42 AM", text: "Director notified", status: "Notification Sent", tone: "cyan", icon: "▣" },
+    { show: step > 1, time: "2:43 AM", text: "Director acknowledged", status: "Acknowledged", tone: "green", icon: "✓" },
+    { show: step > 2, time: "2:45 AM", text: "Counselors partially acknowledged", status: "Partial Response", tone: "yellow", icon: "●" },
+    { show: step > 3, time: "2:49 AM", text: "Transport no response", status: "Escalation", tone: "red", icon: "■" },
+  ].filter((event) => event.show);
+
+  if (!events.length) return null;
+
   return (
-    <div className="mt-6 space-y-2 text-sm">
-      {step > 0 && (
-        <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-red-300">
-          Alert: River rising + heavy rainfall = high flood risk
+    <div className="mt-6 space-y-3 text-sm">
+      {events.map((event) => (
+        <div key={`${event.time}-${event.text}`} className={`grid grid-cols-[30px_80px_1fr_auto] items-center gap-3 rounded-xl border p-3 ${toneClasses(event.tone)}`}>
+          <div className="font-bold">{event.icon}</div>
+          <div>{event.time}</div>
+          <div>{event.text}</div>
+          <div className="hidden font-semibold md:block">{event.status}</div>
         </div>
-      )}
-      {step > 1 && (
-        <div className="bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-xl text-cyan-300">
-          SMS: Director acknowledged
-        </div>
-      )}
-      {step > 2 && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl text-yellow-300">
-          Decision: Evacuate low cabins first
-        </div>
-      )}
-      {step > 3 && (
-        <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-red-300">
-          Escalation: Transport not responding
-        </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -441,48 +439,70 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.12),_transparent_25%),radial-gradient(circle_at_bottom_right,_rgba(239,68,68,0.12),_transparent_25%),linear-gradient(180deg,_#020617,_#000)] p-6 text-white">
-      <div className="grid lg:grid-cols-2 gap-6 max-w-7xl mx-auto">
-        <div className="border border-white/10 rounded-3xl p-8 flex flex-col justify-between bg-slate-950/80">
-          <div>
-            <div className="text-xs text-cyan-300 tracking-widest">SENTINEL · CAMP MYSTIC SCENARIO</div>
-            <h1 className="text-5xl font-black mt-4 leading-tight">
-              If Camp Mystic had Sentinel, this is how the first minutes would look.
-            </h1>
-            <p className="mt-4 text-gray-400">The warning is not the product. The action is the product.</p>
+      <div className="mx-auto max-w-[1600px] rounded-3xl border border-white/10 bg-slate-950/50 p-8 shadow-2xl">
+        <header className="text-center">
+          <div className="text-sm font-bold uppercase tracking-[0.25em] text-cyan-300">Sentinel · Camp Mystic Scenario</div>
+          <h1 className="mx-auto mt-5 max-w-6xl text-5xl font-black leading-tight md:text-6xl">
+            Real-time decisions when minutes matter.
+          </h1>
+          <p className="mt-4 text-2xl text-gray-200">
+            If Camp Mystic had Sentinel, this is how the first minutes would look.
+          </p>
+          <p className="mt-3 text-xl text-gray-400">
+            The warning is not the product. The action is the product.
+          </p>
+        </header>
 
-            <StepCircles step={step} />
-
-            <div className="mt-8 border border-white/10 rounded-2xl p-6 bg-white/5">
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-cyan-300 text-sm font-semibold">{current.label}</div>
-                <StatusPill tone={current.metricTone === "red" ? "red" : current.metricTone === "cyan" ? "cyan" : "green"}>
-                  {rightMetric}
-                </StatusPill>
-              </div>
-              <div className="text-3xl font-black mt-4">{current.title}</div>
-              <p className="mt-3 text-gray-300 leading-relaxed">{current.body}</p>
-              <DetailGrid items={current.detailItems} tone={current.detailTone} />
-            </div>
-
-            <div className="mt-6 text-xs text-gray-500">184 children. One river. Minutes matter.</div>
-          </div>
-
-          <Button active onClick={handleNext} className="mt-6 w-full">
-            {step === 0 ? "Start Incident" : step === INTRO_STEPS.length - 1 ? "View Command Center" : "Next"}
-          </Button>
+        <div className="mt-8">
+          <StepCircles step={step} />
         </div>
 
-        <div className="border border-white/10 rounded-3xl p-8 flex flex-col justify-center bg-slate-950/80">
-          <div className="text-right text-sm text-gray-400">Camp Mystic Scenario</div>
-          <div className={`text-6xl font-black mt-6 ${textTone(current.metricTone)} ${current.metricTone === "red" ? "animate-pulse" : ""}`}>
-            {rightMetric}
-          </div>
-          <div className="mt-2 text-sm text-gray-400">{rightCaption}</div>
+        <div className="mt-8 grid gap-7 lg:grid-cols-2">
+          <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-8">
+            <div className="flex min-h-[600px] flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-cyan-300 text-lg font-bold">{current.label}</div>
+                  <StatusPill tone={current.metricTone === "red" ? "red" : current.metricTone === "cyan" ? "cyan" : current.metricTone === "green" ? "green" : "yellow"}>
+                    {rightMetric}
+                  </StatusPill>
+                </div>
 
-          <Radar active={active} />
-          <SignalRows step={step} />
-          <EventStack step={step} />
-          <CommandFocusPanel step={step} />
+                <div className="mt-8 text-4xl font-black">{current.title}</div>
+                <p className="mt-5 max-w-2xl text-xl leading-relaxed text-gray-300">{current.body}</p>
+                <DetailGrid items={current.detailItems} tone={current.detailTone} />
+              </div>
+
+              <div>
+                <div className="mb-6 text-xl text-gray-400">184 children. One river. Minutes matter.</div>
+                <Button active onClick={handleNext} className="w-full py-5 text-2xl">
+                  {step === 0 ? "Start Incident" : step === INTRO_STEPS.length - 1 ? "View Command Center" : "Next"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-8">
+            <div className="flex min-h-[600px] flex-col justify-between">
+              <div>
+                <div className="text-right text-lg text-gray-400">Camp Mystic Scenario</div>
+                <div className={`mt-8 text-6xl font-black ${textTone(current.metricTone)} ${current.metricTone === "red" ? "animate-pulse" : ""}`}>
+                  {rightMetric}
+                </div>
+                <div className="mt-2 text-xl text-gray-400">{rightCaption}</div>
+              </div>
+
+              <div className="mt-5 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+                <Radar active={active} />
+                <SignalRows step={step} />
+              </div>
+
+              <div>
+                <EventStack step={step} />
+                <CommandFocusPanel step={step} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
