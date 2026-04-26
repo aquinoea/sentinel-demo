@@ -53,6 +53,7 @@ const STORY_STEPS = [
     body: "At 2:41 AM, Sentinel detects multiple signals at once: flash flood warning, rising water, and rainfall intensity.",
     metric: "RED",
     caption: "Risk elevated automatically",
+    metricTone: "red",
   },
   {
     label: "2 / Notify",
@@ -60,6 +61,7 @@ const STORY_STEPS = [
     body: "The director and critical roles receive the incident alert immediately. The system tracks whether they acknowledge it.",
     metric: "2:43 AM",
     caption: "Director acknowledged",
+    metricTone: "cyan",
   },
   {
     label: "3 / Decide",
@@ -67,6 +69,7 @@ const STORY_STEPS = [
     body: "Sentinel turns the alert into a decision: evacuate low-lying cabins first and move children toward higher ground.",
     metric: "COUNTDOWN",
     caption: "Time to act",
+    metricTone: "cyan",
   },
   {
     label: "4 / Command",
@@ -74,6 +77,7 @@ const STORY_STEPS = [
     body: "Now the director can see the full operating picture: children, map, acknowledgments, workflow, and audit trail.",
     metric: "127 / 184",
     caption: "Children accounted",
+    metricTone: "red",
   },
 ];
 
@@ -268,7 +272,7 @@ function StoryIntro({ onEnterDashboard, timeLeft, startIncident }) {
 
   const currentStep = useMemo(() => {
     const step = STORY_STEPS[stepIndex];
-    if (step.metric === "COUNTDOWN") return { ...step, metric: `${timeLeft} min` };
+    if (step.metric === "COUNTDOWN") return { ...step, metric: `${timeLeft} min`, metricTone: "cyan" };
     return step;
   }, [stepIndex, timeLeft]);
 
@@ -327,11 +331,11 @@ function StoryIntro({ onEnterDashboard, timeLeft, startIncident }) {
             <div className="flex h-full min-h-[420px] flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between gap-4">
-                  <StatusPill tone={currentStep.metric === "RED" ? "red" : "cyan"}>{currentStep.metric}</StatusPill>
+                  <StatusPill tone={currentStep.metricTone}>{currentStep.metric}</StatusPill>
                   <div className="text-sm text-gray-400">Camp Mystic Scenario</div>
                 </div>
 
-                <div className={`mt-8 text-6xl font-black animate-pulse ${currentStep.metric === "RED" ? "text-red-400" : "text-cyan-300"}`}>
+                <div className={`mt-8 text-6xl font-black animate-pulse ${currentStep.metricTone === "red" ? "text-red-400" : "text-cyan-300"}`}>
                   {currentStep.metric}
                 </div>
 
