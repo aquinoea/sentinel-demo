@@ -1,19 +1,18 @@
 import React, { useEffect, useState } from "react";
 
 /**
- * Sentinel Camp Mystic Demo V8
+ * Sentinel Camp Mystic Demo V9
  * ------------------------------------------------------------
- * V8 focus:
- * - Preserve V7 separated headline layout.
- * - Make Step 3 decision visually dominant.
- * - Keep countdown persistent from notify → decide → command → dashboard.
- * - Move Operator Focus higher on Step 4.
- * - Use newest-first live incident feed for real-time ops.
- * - Improve dashboard overview, map, audit, workflow, and timeline hierarchy.
- *
- * Requirements:
- * 1. Put your map image at: public/camp-mystic-map.png
- * 2. src/index.css should contain only: @import "tailwindcss";
+ * V9 upgrades:
+ * - Step 0 radar enlarged and centered.
+ * - Step 2 timer urgency styling.
+ * - Step 3 decision card strengthened with “DECISION ISSUED — 2:44 AM”.
+ * - Step 4 uses clean Option A: no system status panel, stronger Operator Focus, cleaner Live Feed.
+ * - Overview uses balanced layout with larger map.
+ * - Map tab simplified with fewer nested frames.
+ * - Audit includes expandable missing-child names.
+ * - Workflow blocker strengthened.
+ * - Timeline grouped and newest-first.
  */
 
 const MAP_IMAGE_SRC = "/camp-mystic-map.png";
@@ -90,14 +89,46 @@ const SIGNALS = [
 ];
 
 const CHILDREN_GROUPS = [
-  { id: "cabin-3", group: "Cabin 3 (Creek Edge)", accounted: "20 / 24", missing: 4, status: "Evacuate first", tone: "red" },
-  { id: "cabin-4", group: "Cabin 4 (Near Creek)", accounted: "18 / 22", missing: 4, status: "Evacuate first", tone: "red" },
-  { id: "cabin-2", group: "Cabin 2 (Low Area)", accounted: "16 / 20", missing: 4, status: "Evacuate first", tone: "red" },
-  { id: "cabin-5", group: "Cabin 5 (Elevated)", accounted: "24 / 24", missing: 0, status: "Safe / hold", tone: "green" },
+  {
+    id: "cabin-3",
+    group: "Cabin 3 (Creek Edge)",
+    accounted: "20 / 24",
+    missing: 4,
+    status: "Evacuate first",
+    tone: "red",
+    names: ["Ethan Ramirez", "Sofia Martinez", "Lucas Nguyen", "Ava Johnson"],
+  },
+  {
+    id: "cabin-4",
+    group: "Cabin 4 (Near Creek)",
+    accounted: "18 / 22",
+    missing: 4,
+    status: "Evacuate first",
+    tone: "red",
+    names: ["Mia Thompson", "Noah Garcia", "Isabella Chen", "Daniel Brooks"],
+  },
+  {
+    id: "cabin-2",
+    group: "Cabin 2 (Low Area)",
+    accounted: "16 / 20",
+    missing: 4,
+    status: "Evacuate first",
+    tone: "red",
+    names: ["Emma Rodriguez", "Liam Carter", "Olivia Patel", "Mateo Flores"],
+  },
+  {
+    id: "cabin-5",
+    group: "Cabin 5 (Elevated)",
+    accounted: "24 / 24",
+    missing: 0,
+    status: "Safe / hold",
+    tone: "green",
+    names: [],
+  },
 ];
 
 const ACKNOWLEDGMENTS = [
-  { id: "transport", role: "Transport", detail: "No response after escalation window", status: "No Response", time: "8+ min", tone: "red", priority: true },
+  { id: "transport", role: "Transport", detail: "No response after escalation window", status: "No Response", time: "8+ min", tone: "red" },
   { id: "counselors", role: "Counselors", detail: "11 / 12 responded", status: "Partial", time: "2:45 AM", tone: "yellow" },
   { id: "director", role: "Director", detail: "Incident opened", status: "Acknowledged", time: "2:43 AM", tone: "green" },
 ];
@@ -111,7 +142,7 @@ const WORKFLOW_TASKS = [
 ];
 
 const TIMELINE_EVENTS = [
-  { time: "3:05 AM", event: "Headcount: 127 / 184", type: "Headcount", tone: "purple", group: "STATUS" },
+  { time: "3:05 AM", event: "Headcount: 127 / 184", type: "Headcount", tone: "purple", group: "ACTIONS" },
   { time: "2:52 AM", event: "Low-lying cabins prioritized", type: "Workflow Action", tone: "blue", group: "ACTIONS" },
   { time: "2:49 AM", event: "Transport no response", type: "Escalation", tone: "red", group: "CRITICAL" },
   { time: "2:45 AM", event: "Counselors partially acknowledged", type: "Partial Response", tone: "yellow", group: "ACTIONS" },
@@ -129,7 +160,7 @@ const LIVE_EVENTS = [
 ];
 
 function textTone(tone) {
-  const tones = {
+  return {
     cyan: "text-cyan-300",
     red: "text-red-400",
     green: "text-green-400",
@@ -137,12 +168,11 @@ function textTone(tone) {
     blue: "text-blue-300",
     purple: "text-purple-300",
     gray: "text-gray-300",
-  };
-  return tones[tone] ?? tones.gray;
+  }[tone] ?? "text-gray-300";
 }
 
 function toneClasses(tone) {
-  const tones = {
+  return {
     green: "border-green-400/30 bg-green-500/10 text-green-400",
     yellow: "border-yellow-400/30 bg-yellow-500/10 text-yellow-400",
     red: "border-red-400/30 bg-red-500/10 text-red-400",
@@ -150,18 +180,22 @@ function toneClasses(tone) {
     blue: "border-blue-400/30 bg-blue-500/10 text-blue-300",
     purple: "border-purple-400/30 bg-purple-500/10 text-purple-300",
     gray: "border-white/10 bg-white/10 text-gray-300",
-  };
-  return tones[tone] ?? tones.gray;
+  }[tone] ?? "border-white/10 bg-white/10 text-gray-300";
 }
 
 function detailBoxClasses(tone) {
-  const tones = {
+  return {
     green: "border-green-400/20 bg-green-500/10 text-green-300",
     red: "border-red-400/20 bg-red-500/10 text-red-300",
     cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300",
     yellow: "border-yellow-400/20 bg-yellow-500/10 text-yellow-300",
-  };
-  return tones[tone] ?? tones.cyan;
+  }[tone] ?? "border-cyan-400/20 bg-cyan-500/10 text-cyan-300";
+}
+
+function urgencyTone(timeLeft) {
+  if (timeLeft <= 10) return "text-orange-300";
+  if (timeLeft <= 15) return "text-yellow-300";
+  return "text-cyan-300";
 }
 
 function Card({ children, className = "" }) {
@@ -200,11 +234,9 @@ function StepCircles({ step }) {
     <div className="flex items-center justify-center gap-3">
       {INTRO_STEPS.map((item, index) => (
         <div key={item.id} className="flex items-center gap-3">
-          <div
-            className={`flex h-12 w-12 items-center justify-center rounded-full text-base font-bold transition ${
-              index <= step ? "bg-cyan-400 text-black shadow-lg shadow-cyan-400/20" : "bg-white/10 text-gray-400"
-            }`}
-          >
+          <div className={`flex h-12 w-12 items-center justify-center rounded-full text-base font-bold transition ${
+            index <= step ? "bg-cyan-400 text-black shadow-lg shadow-cyan-400/20" : "bg-white/10 text-gray-400"
+          }`}>
             {index}
           </div>
           {index < INTRO_STEPS.length - 1 && (
@@ -219,9 +251,7 @@ function StepCircles({ step }) {
 function DetailGrid({ items, tone }) {
   return (
     <div className={`mt-5 grid grid-cols-2 gap-3 rounded-2xl border p-4 text-sm ${detailBoxClasses(tone)}`}>
-      {items.map((item) => (
-        <div key={item}>• {item}</div>
-      ))}
+      {items.map((item) => <div key={item}>• {item}</div>)}
     </div>
   );
 }
@@ -229,21 +259,27 @@ function DetailGrid({ items, tone }) {
 function DecisionCallout() {
   return (
     <div className="mt-6 rounded-2xl border border-yellow-400/40 bg-yellow-500/10 p-5 shadow-lg shadow-yellow-500/10">
-      <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-yellow-300">⚠ Decision</div>
-      <div className="text-3xl font-black leading-tight text-yellow-300">Evacuate Cabins 2, 3, 4 immediately</div>
-      <p className="mt-3 text-lg text-gray-200">Move children to higher ground using the marked route.</p>
+      <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-yellow-300">
+        ⚠ Decision Issued — 2:44 AM
+      </div>
+      <div className="text-3xl font-black leading-tight text-yellow-300">
+        Evacuate Cabins 2, 3, 4 immediately
+      </div>
+      <p className="mt-3 text-lg text-gray-200">
+        Move children to higher ground using the marked route.
+      </p>
     </div>
   );
 }
 
-function Radar({ active }) {
+function Radar({ active, large = false }) {
   return (
-    <div className="flex justify-center">
-      <div className={`relative h-56 w-56 rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"}`}>
-        <div className="absolute inset-6 border border-white/10 rounded-full" />
-        <div className="absolute inset-14 border border-white/10 rounded-full" />
-        <div className="absolute inset-24 border border-white/10 rounded-full" />
-        <div className={`absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full ${active ? "bg-red-400" : "bg-cyan-300"} animate-pulse`} />
+    <div className="flex items-center justify-center">
+      <div className={`relative ${large ? "h-80 w-80" : "h-56 w-56"} rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"}`}>
+        <div className="absolute inset-8 border border-white/10 rounded-full" />
+        <div className="absolute inset-20 border border-white/10 rounded-full" />
+        <div className="absolute inset-32 border border-white/10 rounded-full" />
+        <div className={`absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full ${active ? "bg-red-400" : "bg-cyan-300"} animate-pulse`} />
       </div>
     </div>
   );
@@ -267,25 +303,19 @@ function SignalRows({ step }) {
   );
 }
 
-function LiveIncidentFeed({ step, compact = false }) {
+function LiveIncidentFeed({ step }) {
   const events = LIVE_EVENTS.filter((event) => step >= event.step);
-
   if (!events.length) return null;
 
   return (
-    <div className={`${compact ? "mt-4" : "mt-6"}`}>
+    <div className="mt-6">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Live Incident Feed</div>
         <StatusPill tone="green" className="min-h-6 px-2 py-0 text-xs">● Live</StatusPill>
       </div>
       <div className="space-y-3 text-sm">
         {events.map((event, index) => (
-          <div
-            key={`${event.time}-${event.text}`}
-            className={`grid grid-cols-[30px_80px_1fr_auto] items-center gap-3 rounded-xl border p-3 ${toneClasses(event.tone)} ${
-              index > 1 ? "opacity-80" : ""
-            }`}
-          >
+          <div key={`${event.time}-${event.text}`} className={`grid grid-cols-[30px_80px_1fr_auto] items-center gap-3 rounded-xl border p-3 ${toneClasses(event.tone)} ${index > 1 ? "opacity-80" : ""}`}>
             <div className="font-bold">{event.icon}</div>
             <div>{event.time}</div>
             <div>{event.text}</div>
@@ -297,11 +327,15 @@ function LiveIncidentFeed({ step, compact = false }) {
   );
 }
 
-function OperatorFocusPanel({ large = false }) {
+function OperatorFocusPanel() {
   return (
-    <div className={`rounded-2xl border border-red-400/25 bg-red-500/10 ${large ? "p-5" : "p-4"}`}>
-      <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-red-300">Operator Focus</div>
-      <div className={`${large ? "text-4xl" : "text-2xl"} font-black leading-tight text-red-300`}>57 children unaccounted</div>
+    <div className="rounded-2xl border border-red-400/25 bg-red-500/10 p-5">
+      <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-red-300">
+        Operator Focus
+      </div>
+      <div className="text-4xl font-black leading-tight text-red-300">
+        57 children unaccounted
+      </div>
       <div className="mt-4 grid gap-3 md:grid-cols-4">
         <div>
           <div className="text-xs uppercase tracking-widest text-gray-400">Priority</div>
@@ -331,7 +365,9 @@ function ChildrenStatusCard() {
         <h2 className="text-lg font-semibold text-cyan-300">Children Status</h2>
         <StatusPill tone="cyan">Priority</StatusPill>
       </div>
-      <p className="mb-4 text-sm text-gray-400">Visible by cabin so staff know who is safe, who is moving, and who needs help.</p>
+      <p className="mb-4 text-sm text-gray-400">
+        Visible by cabin so staff know who is safe, who is moving, and who needs help.
+      </p>
       <div className="space-y-2">
         {CHILDREN_GROUPS.map((childGroup) => (
           <div key={childGroup.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -349,44 +385,58 @@ function ChildrenStatusCard() {
 
 function MapImage({ compact = false }) {
   return (
-    <div className={`flex overflow-hidden rounded-3xl bg-slate-950 ${compact ? "min-h-[520px] items-center justify-center p-2" : "items-center justify-center p-0"}`}>
+    <div className={`flex overflow-hidden rounded-3xl bg-slate-950 ${compact ? "min-h-[560px] items-center justify-center p-2" : "items-center justify-center p-0"}`}>
       <img
         src={MAP_IMAGE_SRC}
         alt="Simulated Camp Mystic flood risk map showing river corridor, low-lying cabins, evacuation route, bridge risk, and higher-ground rally point."
-        className={compact ? "max-h-[520px] w-full rounded-2xl object-contain" : "w-full rounded-3xl object-contain"}
+        className={compact ? "max-h-[560px] w-full rounded-2xl object-contain" : "w-full rounded-3xl object-contain"}
       />
     </div>
   );
 }
 
-function OverviewScreen({ timeLeft }) {
+function OverviewScreen({ timeLeft, onOpenMap }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.75fr_1.75fr]">
+    <div className="grid gap-6 lg:grid-cols-[0.72fr_1.85fr]">
       <div className="space-y-6">
         <Card>
           <div className="grid gap-4">
             <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4">
-              <div className="text-5xl font-bold text-cyan-400 animate-pulse">{timeLeft} min</div>
+              <div className={`text-5xl font-bold animate-pulse ${urgencyTone(timeLeft)}`}>
+                {timeLeft} min
+              </div>
               <div className="text-gray-300">Time remaining</div>
             </div>
+
             <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4">
               <div className="text-3xl font-black text-red-300">57 unaccounted</div>
               <div className="text-gray-300">127 / 184 children accounted</div>
             </div>
+
             <div className="rounded-2xl border border-yellow-400/20 bg-yellow-500/10 p-4">
               <div className="text-sm font-bold uppercase tracking-[0.2em] text-yellow-300">Decision</div>
               <div className="mt-2 text-xl font-black text-yellow-300">Evacuate Cabins 2, 3, 4</div>
               <div className="mt-1 text-gray-300">Move to higher ground via marked route.</div>
             </div>
+
             <div className="rounded-xl bg-white/5 p-3 text-cyan-300">SMS: Director acknowledged</div>
             <div className="rounded-xl bg-white/5 p-3 text-red-300">SMS: Transport not responding</div>
           </div>
         </Card>
+
         <ChildrenStatusCard />
       </div>
+
       <Card className="p-4">
-        <div className="mb-4 text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Recommended Action</div>
-        <MapImage compact />
+        <button type="button" onClick={onOpenMap} className="block w-full text-left">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">
+              Recommended Action
+            </div>
+            <div className="text-sm text-gray-400">Click map to expand</div>
+          </div>
+          <MapImage compact />
+        </button>
       </Card>
     </div>
   );
@@ -394,8 +444,43 @@ function OverviewScreen({ timeLeft }) {
 
 function MapScreen() {
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-4 shadow-2xl">
+    <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl">
       <MapImage />
+    </div>
+  );
+}
+
+function MissingCabinRow({ group }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3">
+        <div>
+          <div className="font-semibold">{group.group}</div>
+          <div className="text-xs text-gray-400">{group.status}</div>
+        </div>
+        <StatusPill tone={group.tone}>{group.accounted}</StatusPill>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className={group.missing > 0 ? "font-bold text-red-300 hover:text-red-200" : "font-bold text-green-300"}
+          disabled={group.missing === 0}
+        >
+          {group.missing} missing
+        </button>
+      </div>
+
+      {open && group.names.length > 0 && (
+        <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-100">
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-red-300">
+            Missing roster
+          </div>
+          <div className="grid gap-1 md:grid-cols-2">
+            {group.names.map((name) => <div key={name}>• {name}</div>)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -406,11 +491,13 @@ function AuditScreen() {
       <Card>
         <h2 className="text-xl font-bold">Acknowledgments</h2>
         <p className="mb-4 text-gray-400">Who received the signal, when, and who has not responded.</p>
+
         <div className="mb-4 rounded-2xl border border-red-400/25 bg-red-500/10 p-4">
           <div className="text-xs font-bold uppercase tracking-[0.25em] text-red-300">Critical Gap</div>
           <div className="mt-2 text-2xl font-black text-red-300">Transport has not responded</div>
           <div className="mt-1 text-sm text-gray-300">No response after escalation window · 8+ min</div>
         </div>
+
         <div className="space-y-2">
           {ACKNOWLEDGMENTS.map((ack) => (
             <div key={ack.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -423,25 +510,17 @@ function AuditScreen() {
           ))}
         </div>
       </Card>
+
       <Card>
         <div className="mb-3 flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-cyan-300">Unaccounted by Cabin</h2>
           <StatusPill tone="red">57 total</StatusPill>
         </div>
-        <p className="mb-4 text-sm text-gray-400">Cabin-level detail keeps the UI actionable without overwhelming staff with a full roster.</p>
+        <p className="mb-4 text-sm text-gray-400">
+          Cabin-level detail keeps the UI actionable. Click missing counts to view roster detail.
+        </p>
         <div className="space-y-2">
-          {CHILDREN_GROUPS.map((group) => (
-            <div key={group.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-              <div>
-                <div className="font-semibold">{group.group}</div>
-                <div className="text-xs text-gray-400">{group.status}</div>
-              </div>
-              <StatusPill tone={group.tone}>{group.accounted}</StatusPill>
-              <div className={group.missing > 0 ? "font-bold text-red-300" : "font-bold text-green-300"}>
-                {group.missing} missing
-              </div>
-            </div>
-          ))}
+          {CHILDREN_GROUPS.map((group) => <MissingCabinRow key={group.id} group={group} />)}
         </div>
       </Card>
     </div>
@@ -449,19 +528,19 @@ function AuditScreen() {
 }
 
 function WorkflowScreen() {
-  const blocker = WORKFLOW_TASKS.find((task) => task.id === "buses");
-
   return (
     <Card>
       <h2 className="text-xl font-bold">Active Workflow</h2>
       <p className="mb-4 text-gray-400">Pending actions and escalation logic.</p>
-      {blocker && (
-        <div className="mb-5 rounded-2xl border border-red-400/25 bg-red-500/10 p-4">
-          <div className="text-xs font-bold uppercase tracking-[0.25em] text-red-300">Blocker</div>
-          <div className="mt-2 text-2xl font-black text-red-300">Transport — no response</div>
-          <div className="mt-1 text-sm text-gray-300">Dispatch buses is stuck for 8+ minutes. Escalate or assign backup transport.</div>
+
+      <div className="mb-5 rounded-2xl border border-red-400/30 bg-red-500/10 p-5 shadow-lg shadow-red-500/10">
+        <div className="text-xs font-bold uppercase tracking-[0.25em] text-red-300">Blocker</div>
+        <div className="mt-2 text-3xl font-black text-red-300">Transport — no response</div>
+        <div className="mt-1 text-sm text-gray-300">
+          Dispatch buses is stuck for 8+ minutes. Escalate or assign backup transport.
         </div>
-      )}
+      </div>
+
       <div className="space-y-2">
         {WORKFLOW_TASKS.map((task) => (
           <div key={task.id} className="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[1.2fr_0.8fr_0.7fr_0.9fr] md:items-center">
@@ -509,26 +588,23 @@ function TimelineScreen() {
 function RightPanel({ step, current, rightMetric, rightCaption, rightSubcaption, active, timeLeft }) {
   if (current.id === "command") {
     return (
-      <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-7">
+      <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-8">
         <div className="text-right text-lg text-gray-400">Camp Mystic Scenario</div>
-        <div className={`mt-5 text-6xl font-black ${textTone(current.metricTone)} animate-pulse`}>{rightMetric}</div>
-        <div className="mt-2 text-xl text-gray-300">{rightCaption}</div>
-        <p className="mt-2 text-sm text-gray-400">{rightSubcaption}</p>
 
-        <div className="mt-6">
-          <OperatorFocusPanel large />
+        <div className="mt-6 text-6xl font-black text-red-400 animate-pulse">
+          57 UNACCOUNTED
+        </div>
+        <div className="mt-2 text-xl text-gray-300">127 / 184 children accounted</div>
+        <p className="mt-2 text-sm text-gray-400">
+          Focus the team on the missing, blocked, and highest-risk groups.
+        </p>
+
+        <div className="mt-8">
+          <OperatorFocusPanel />
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[0.75fr_1.25fr] lg:items-start">
-          <div className="rounded-2xl border border-cyan-400/10 bg-white/[0.03] p-4">
-            <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">System Status</div>
-            <SignalRows step={step} />
-            <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4">
-              <div className="text-sm uppercase tracking-widest text-cyan-300">Time Remaining</div>
-              <div className="mt-2 text-4xl font-black text-cyan-300">{timeLeft} MIN</div>
-            </div>
-          </div>
-          <LiveIncidentFeed step={step} compact />
+        <div className="mt-8">
+          <LiveIncidentFeed step={step} />
         </div>
       </div>
     );
@@ -539,19 +615,19 @@ function RightPanel({ step, current, rightMetric, rightCaption, rightSubcaption,
       <div className="flex min-h-[600px] flex-col justify-between">
         <div>
           <div className="text-right text-lg text-gray-400">Camp Mystic Scenario</div>
-          <div className={`mt-8 text-6xl font-black ${textTone(current.metricTone)} ${current.metricTone === "red" ? "animate-pulse" : ""}`}>
+          <div className={`mt-8 text-6xl font-black ${current.metric === "COUNTDOWN" ? urgencyTone(timeLeft) : textTone(current.metricTone)} ${current.metricTone === "red" ? "animate-pulse" : ""}`}>
             {rightMetric}
           </div>
           <div className="mt-2 text-xl text-gray-300">{rightCaption}</div>
           <div className="mt-1 text-sm text-gray-500">{rightSubcaption}</div>
         </div>
 
-        <div className="mt-5 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <Radar active={active} />
-          <SignalRows step={step} />
+        <div className={`mt-5 grid gap-6 ${current.id === "monitor" ? "lg:grid-cols-1" : "lg:grid-cols-[0.9fr_1.1fr] lg:items-center"}`}>
+          <Radar active={active} large={current.id === "monitor"} />
+          {current.id !== "monitor" && <SignalRows step={step} />}
         </div>
 
-        <LiveIncidentFeed step={step} />
+        {current.id === "monitor" ? <SignalRows step={step} /> : <LiveIncidentFeed step={step} />}
       </div>
     </div>
   );
@@ -563,8 +639,6 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
   const active = step > 0;
   const isCountdownStep = current.metric === "COUNTDOWN";
   const rightMetric = isCountdownStep ? `${timeLeft} MIN` : current.metric;
-  const rightCaption = current.metricCaption;
-  const rightSubcaption = current.metricSubcaption;
 
   const handleNext = () => {
     if (step === 0) startIncident();
@@ -580,9 +654,15 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
       <div className="mx-auto max-w-[1600px] rounded-3xl border border-white/10 bg-slate-950/50 p-8 shadow-2xl">
         <header className="text-center">
           <div className="text-sm font-bold uppercase tracking-[0.25em] text-cyan-300">Sentinel · Camp Mystic Scenario</div>
-          <h1 className="mx-auto mt-5 max-w-6xl text-5xl font-black leading-tight md:text-6xl">Real-time decisions when minutes matter.</h1>
-          <p className="mt-4 text-2xl text-gray-200">If Camp Mystic had Sentinel, this is how the first minutes would look.</p>
-          <p className="mt-3 text-xl text-gray-400">The warning is not the product. The action is the product.</p>
+          <h1 className="mx-auto mt-5 max-w-6xl text-5xl font-black leading-tight md:text-6xl">
+            Real-time decisions when minutes matter.
+          </h1>
+          <p className="mt-4 text-2xl text-gray-200">
+            If Camp Mystic had Sentinel, this is how the first minutes would look.
+          </p>
+          <p className="mt-3 text-xl text-gray-400">
+            The warning is not the product. The action is the product.
+          </p>
         </header>
 
         <div className="mt-8">
@@ -595,15 +675,17 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
               <div>
                 <div className="flex items-center justify-between gap-4">
                   <div className="text-cyan-300 text-lg font-bold">{current.label}</div>
-                  <StatusPill tone={current.metricTone === "red" ? "red" : current.metricTone === "cyan" ? "cyan" : current.metricTone === "green" ? "green" : "yellow"}>
-                    {rightMetric}
-                  </StatusPill>
+                  <StatusPill tone={current.metricTone}>{rightMetric}</StatusPill>
                 </div>
 
                 <div className="mt-8 text-4xl font-black">{current.title}</div>
                 <p className="mt-5 max-w-2xl text-xl leading-relaxed text-gray-300">{current.body}</p>
 
-                {current.id === "decide" ? <DecisionCallout /> : <DetailGrid items={current.detailItems} tone={current.detailTone} />}
+                {current.id === "decide" ? (
+                  <DecisionCallout />
+                ) : (
+                  <DetailGrid items={current.detailItems} tone={current.detailTone} />
+                )}
               </div>
 
               <div>
@@ -619,8 +701,8 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
             step={step}
             current={current}
             rightMetric={rightMetric}
-            rightCaption={rightCaption}
-            rightSubcaption={rightSubcaption}
+            rightCaption={current.metricCaption}
+            rightSubcaption={current.metricSubcaption}
             active={active}
             timeLeft={timeLeft}
           />
@@ -653,11 +735,13 @@ function Dashboard({ timeLeft, onReplayIntro }) {
 
         <nav className="flex flex-wrap gap-3" aria-label="Command center tabs">
           {tabs.map((item) => (
-            <Button key={item} active={tab === item} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</Button>
+            <Button key={item} active={tab === item} onClick={() => setTab(item)}>
+              {item[0].toUpperCase() + item.slice(1)}
+            </Button>
           ))}
         </nav>
 
-        {tab === "overview" && <OverviewScreen timeLeft={timeLeft} />}
+        {tab === "overview" && <OverviewScreen timeLeft={timeLeft} onOpenMap={() => setTab("map")} />}
         {tab === "map" && <MapScreen />}
         {tab === "audit" && <AuditScreen />}
         {tab === "workflow" && <WorkflowScreen />}
@@ -674,7 +758,9 @@ export default function App() {
 
   useEffect(() => {
     if (!incidentStarted) return undefined;
-    const timer = setInterval(() => setTimeLeft((minutes) => (minutes > 0 ? minutes - 1 : 0)), COUNTDOWN_INTERVAL_MS);
+    const timer = setInterval(() => {
+      setTimeLeft((minutes) => (minutes > 0 ? minutes - 1 : 0));
+    }, COUNTDOWN_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [incidentStarted]);
 
