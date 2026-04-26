@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from "react";
 
 /**
- * Sentinel Camp Mystic Demo V9
+ * Sentinel Camp Mystic Demo V10
  * ------------------------------------------------------------
- * V9 upgrades:
- * - Step 0 radar enlarged and centered.
- * - Step 2 timer urgency styling.
- * - Step 3 decision card strengthened with “DECISION ISSUED — 2:44 AM”.
- * - Step 4 uses clean Option A: no system status panel, stronger Operator Focus, cleaner Live Feed.
- * - Overview uses balanced layout with larger map.
- * - Map tab simplified with fewer nested frames.
- * - Audit includes expandable missing-child names.
- * - Workflow blocker strengthened.
- * - Timeline grouped and newest-first.
+ * V10 upgrades:
+ * - Step 0 radar repositioned with cleaner spacing.
+ * - Step 1 strongest signal highlighted.
+ * - Step 2 timer/radar gets urgency glow.
+ * - Step 3 decision card has stronger authority styling.
+ * - Step 4 spacing refined after removing system status.
+ * - Overview map made more dominant with better labels and clickable affordance.
+ * - Map tab simplified and immersive.
+ * - Audit critical gap gets stronger emphasis + expandable names remain.
+ * - Workflow blocker strengthened and rows made easier to scan.
+ * - Timeline gets a causal-chain feel with dots/line.
  */
 
 const MAP_IMAGE_SRC = "/camp-mystic-map.png";
@@ -43,6 +44,7 @@ const INTRO_STEPS = [
     metricTone: "red",
     detailTone: "red",
     detailItems: ["River rising rapidly", "Rainfall intensity high", "Flood warning active", "Escalation triggered"],
+    emphasisItem: "Flood warning active",
   },
   {
     id: "notify",
@@ -134,11 +136,11 @@ const ACKNOWLEDGMENTS = [
 ];
 
 const WORKFLOW_TASKS = [
-  { id: "evacuate-low-lying", task: "Evacuate low-lying cabins first", owner: "Cabin Counselors", status: "In Progress", tone: "blue", age: "Active now" },
-  { id: "parent-sms", task: "Send SMS to parents", owner: "Parent Comms", status: "Ready to Send", tone: "cyan", age: "Queued" },
-  { id: "authorities", task: "Alert local authorities", owner: "Director", status: "Escalation Recommended", tone: "yellow", age: "Recommended" },
-  { id: "buses", task: "Dispatch buses", owner: "Transport", status: "Blocked: No Response", tone: "red", age: "8+ min stuck" },
-  { id: "rally-point", task: "Confirm rally point safety", owner: "Medical Lead", status: "Pending Confirmation", tone: "yellow", age: "Pending" },
+  { id: "evacuate-low-lying", icon: "↗", task: "Evacuate low-lying cabins first", owner: "Cabin Counselors", status: "In Progress", tone: "blue", age: "Active now" },
+  { id: "parent-sms", icon: "✉", task: "Send SMS to parents", owner: "Parent Comms", status: "Ready to Send", tone: "cyan", age: "Queued" },
+  { id: "authorities", icon: "⚠", task: "Alert local authorities", owner: "Director", status: "Escalation Recommended", tone: "yellow", age: "Recommended" },
+  { id: "buses", icon: "■", task: "Dispatch buses", owner: "Transport", status: "Blocked: No Response", tone: "red", age: "8+ min stuck" },
+  { id: "rally-point", icon: "✓", task: "Confirm rally point safety", owner: "Medical Lead", status: "Pending Confirmation", tone: "yellow", age: "Pending" },
 ];
 
 const TIMELINE_EVENTS = [
@@ -198,6 +200,12 @@ function urgencyTone(timeLeft) {
   return "text-cyan-300";
 }
 
+function urgencyGlow(timeLeft) {
+  if (timeLeft <= 10) return "shadow-orange-400/20 border-orange-400/30";
+  if (timeLeft <= 15) return "shadow-yellow-400/20 border-yellow-400/30";
+  return "shadow-cyan-400/10 border-cyan-400/20";
+}
+
 function Card({ children, className = "" }) {
   return (
     <section className={`rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl ${className}`}>
@@ -248,37 +256,44 @@ function StepCircles({ step }) {
   );
 }
 
-function DetailGrid({ items, tone }) {
+function DetailGrid({ items, tone, emphasisItem }) {
   return (
     <div className={`mt-5 grid grid-cols-2 gap-3 rounded-2xl border p-4 text-sm ${detailBoxClasses(tone)}`}>
-      {items.map((item) => <div key={item}>• {item}</div>)}
+      {items.map((item) => {
+        const emphasized = item === emphasisItem;
+        return (
+          <div key={item} className={emphasized ? "rounded-full border border-red-300/30 bg-red-400/10 px-3 py-1 font-bold text-red-200" : "px-1 py-1"}>
+            • {item}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function DecisionCallout() {
   return (
-    <div className="mt-6 rounded-2xl border border-yellow-400/40 bg-yellow-500/10 p-5 shadow-lg shadow-yellow-500/10">
-      <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-yellow-300">
+    <div className="mt-6 rounded-2xl border border-yellow-400/50 bg-yellow-500/10 p-6 shadow-2xl shadow-yellow-500/10 ring-1 ring-yellow-300/10">
+      <div className="mb-3 text-sm font-black uppercase tracking-[0.25em] text-yellow-300">
         ⚠ Decision Issued — 2:44 AM
       </div>
-      <div className="text-3xl font-black leading-tight text-yellow-300">
+      <div className="text-4xl font-black leading-tight text-yellow-300 drop-shadow-[0_0_12px_rgba(250,204,21,0.18)]">
         Evacuate Cabins 2, 3, 4 immediately
       </div>
-      <p className="mt-3 text-lg text-gray-200">
+      <p className="mt-4 text-lg text-gray-100">
         Move children to higher ground using the marked route.
       </p>
     </div>
   );
 }
 
-function Radar({ active, large = false }) {
+function Radar({ active, large = false, urgent = false }) {
   return (
     <div className="flex items-center justify-center">
-      <div className={`relative ${large ? "h-80 w-80" : "h-56 w-56"} rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"}`}>
-        <div className="absolute inset-8 border border-white/10 rounded-full" />
-        <div className="absolute inset-20 border border-white/10 rounded-full" />
-        <div className="absolute inset-32 border border-white/10 rounded-full" />
+      <div className={`relative ${large ? "h-72 w-72" : "h-56 w-56"} rounded-full border ${active ? "border-red-400/30" : "border-cyan-400/20"} ${urgent ? "shadow-2xl shadow-red-500/10" : ""}`}>
+        <div className="absolute inset-8 rounded-full border border-white/10" />
+        <div className="absolute inset-20 rounded-full border border-white/10" />
+        <div className="absolute inset-32 rounded-full border border-white/10" />
         <div className={`absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full ${active ? "bg-red-400" : "bg-cyan-300"} animate-pulse`} />
       </div>
     </div>
@@ -315,7 +330,7 @@ function LiveIncidentFeed({ step }) {
       </div>
       <div className="space-y-3 text-sm">
         {events.map((event, index) => (
-          <div key={`${event.time}-${event.text}`} className={`grid grid-cols-[30px_80px_1fr_auto] items-center gap-3 rounded-xl border p-3 ${toneClasses(event.tone)} ${index > 1 ? "opacity-80" : ""}`}>
+          <div key={`${event.time}-${event.text}`} className={`grid grid-cols-[30px_80px_1fr_auto] items-center gap-3 rounded-xl border p-3 ${toneClasses(event.tone)} ${index > 1 ? "opacity-75" : ""}`}>
             <div className="font-bold">{event.icon}</div>
             <div>{event.time}</div>
             <div>{event.text}</div>
@@ -329,14 +344,14 @@ function LiveIncidentFeed({ step }) {
 
 function OperatorFocusPanel() {
   return (
-    <div className="rounded-2xl border border-red-400/25 bg-red-500/10 p-5">
+    <div className="rounded-2xl border border-red-400/25 bg-red-500/10 p-6">
       <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-red-300">
         Operator Focus
       </div>
       <div className="text-4xl font-black leading-tight text-red-300">
         57 children unaccounted
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <div className="mt-5 grid gap-4 md:grid-cols-4">
         <div>
           <div className="text-xs uppercase tracking-widest text-gray-400">Priority</div>
           <div className="mt-1 font-bold text-yellow-300">Cabins 2, 3, 4</div>
@@ -385,11 +400,12 @@ function ChildrenStatusCard() {
 
 function MapImage({ compact = false }) {
   return (
-    <div className={`flex overflow-hidden rounded-3xl bg-slate-950 ${compact ? "min-h-[560px] items-center justify-center p-2" : "items-center justify-center p-0"}`}>
+    <div className={`group relative flex overflow-hidden rounded-3xl bg-slate-950 ${compact ? "min-h-[590px] items-center justify-center p-1" : "items-center justify-center p-0"}`}>
+      {compact && <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-tr from-black/10 via-transparent to-cyan-400/5" />}
       <img
         src={MAP_IMAGE_SRC}
         alt="Simulated Camp Mystic flood risk map showing river corridor, low-lying cabins, evacuation route, bridge risk, and higher-ground rally point."
-        className={compact ? "max-h-[560px] w-full rounded-2xl object-contain" : "w-full rounded-3xl object-contain"}
+        className={compact ? "max-h-[590px] w-full rounded-2xl object-contain transition duration-300 group-hover:scale-[1.01]" : "w-full rounded-3xl object-contain"}
       />
     </div>
   );
@@ -397,11 +413,11 @@ function MapImage({ compact = false }) {
 
 function OverviewScreen({ timeLeft, onOpenMap }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.72fr_1.85fr]">
+    <div className="grid gap-6 lg:grid-cols-[0.72fr_1.9fr]">
       <div className="space-y-6">
         <Card>
           <div className="grid gap-4">
-            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4">
+            <div className={`rounded-2xl border bg-cyan-500/10 p-4 shadow-lg ${urgencyGlow(timeLeft)}`}>
               <div className={`text-5xl font-bold animate-pulse ${urgencyTone(timeLeft)}`}>
                 {timeLeft} min
               </div>
@@ -430,10 +446,13 @@ function OverviewScreen({ timeLeft, onOpenMap }) {
       <Card className="p-4">
         <button type="button" onClick={onOpenMap} className="block w-full text-left">
           <div className="mb-4 flex items-center justify-between">
-            <div className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">
-              Recommended Action
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">
+                Primary Action Surface
+              </div>
+              <div className="mt-1 text-sm text-gray-400">Recommended route, risk zones, and decision context</div>
             </div>
-            <div className="text-sm text-gray-400">Click map to expand</div>
+            <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-300">Click map to expand</div>
           </div>
           <MapImage compact />
         </button>
@@ -444,7 +463,7 @@ function OverviewScreen({ timeLeft, onOpenMap }) {
 
 function MapScreen() {
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl">
+    <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-1 shadow-2xl">
       <MapImage />
     </div>
   );
@@ -492,9 +511,9 @@ function AuditScreen() {
         <h2 className="text-xl font-bold">Acknowledgments</h2>
         <p className="mb-4 text-gray-400">Who received the signal, when, and who has not responded.</p>
 
-        <div className="mb-4 rounded-2xl border border-red-400/25 bg-red-500/10 p-4">
+        <div className="mb-4 rounded-2xl border border-red-400/30 bg-red-500/10 p-5 shadow-2xl shadow-red-500/10 ring-1 ring-red-300/10">
           <div className="text-xs font-bold uppercase tracking-[0.25em] text-red-300">Critical Gap</div>
-          <div className="mt-2 text-2xl font-black text-red-300">Transport has not responded</div>
+          <div className="mt-2 text-3xl font-black text-red-300">Transport has not responded</div>
           <div className="mt-1 text-sm text-gray-300">No response after escalation window · 8+ min</div>
         </div>
 
@@ -533,7 +552,7 @@ function WorkflowScreen() {
       <h2 className="text-xl font-bold">Active Workflow</h2>
       <p className="mb-4 text-gray-400">Pending actions and escalation logic.</p>
 
-      <div className="mb-5 rounded-2xl border border-red-400/30 bg-red-500/10 p-5 shadow-lg shadow-red-500/10">
+      <div className="mb-5 rounded-2xl border border-red-400/30 bg-red-500/10 p-5 shadow-2xl shadow-red-500/10 ring-1 ring-red-300/10">
         <div className="text-xs font-bold uppercase tracking-[0.25em] text-red-300">Blocker</div>
         <div className="mt-2 text-3xl font-black text-red-300">Transport — no response</div>
         <div className="mt-1 text-sm text-gray-300">
@@ -542,8 +561,9 @@ function WorkflowScreen() {
       </div>
 
       <div className="space-y-2">
-        {WORKFLOW_TASKS.map((task) => (
-          <div key={task.id} className="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[1.2fr_0.8fr_0.7fr_0.9fr] md:items-center">
+        {WORKFLOW_TASKS.map((task, index) => (
+          <div key={task.id} className={`grid gap-3 rounded-xl border border-white/10 p-3 md:grid-cols-[48px_1.2fr_0.8fr_0.7fr_0.9fr] md:items-center ${index % 2 === 0 ? "bg-white/[0.065]" : "bg-white/[0.035]"}`}>
+            <div className={textTone(task.tone)}>{task.icon}</div>
             <div className="font-semibold">{task.task}</div>
             <div className="text-sm text-gray-400">Owner: {task.owner}</div>
             <div className="text-sm text-gray-400">{task.age}</div>
@@ -555,43 +575,50 @@ function WorkflowScreen() {
   );
 }
 
+function TimelineList({ events }) {
+  return (
+    <div className="relative space-y-3 pl-6 before:absolute before:left-2 before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-white/10">
+      {events.map(({ time, event, type, tone }) => (
+        <div key={`${time}-${event}`} className="relative grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[100px_1fr_170px] md:items-center">
+          <div className={`absolute -left-[21px] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full ${tone === "red" ? "bg-red-400" : tone === "green" ? "bg-green-400" : tone === "yellow" ? "bg-yellow-300" : "bg-cyan-300"}`} />
+          <div className="text-cyan-300">{time}</div>
+          <div>{event}</div>
+          <StatusPill tone={tone}>{type}</StatusPill>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TimelineScreen() {
   const criticalEvents = TIMELINE_EVENTS.filter((event) => event.group === "CRITICAL");
   const actionEvents = TIMELINE_EVENTS.filter((event) => event.group !== "CRITICAL");
-
-  const renderEvent = ({ time, event, type, tone }) => (
-    <div key={`${time}-${event}`} className="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[100px_1fr_170px] md:items-center">
-      <div className="text-cyan-300">{time}</div>
-      <div>{event}</div>
-      <StatusPill tone={tone}>{type}</StatusPill>
-    </div>
-  );
 
   return (
     <Card>
       <h2 className="text-xl font-bold">Audit Timeline</h2>
       <p className="mb-4 text-gray-400">Newest updates appear first so operators see the latest status immediately.</p>
 
-      <div className="mb-6">
+      <div className="mb-7">
         <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-red-300">Critical Events</div>
-        <div className="space-y-2">{criticalEvents.map(renderEvent)}</div>
+        <TimelineList events={criticalEvents} />
       </div>
 
       <div>
         <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Actions & Status</div>
-        <div className="space-y-2">{actionEvents.map(renderEvent)}</div>
+        <TimelineList events={actionEvents} />
       </div>
     </Card>
   );
 }
 
-function RightPanel({ step, current, rightMetric, rightCaption, rightSubcaption, active, timeLeft }) {
+function RightPanel({ step, current, rightMetric, active, timeLeft }) {
   if (current.id === "command") {
     return (
       <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-8">
         <div className="text-right text-lg text-gray-400">Camp Mystic Scenario</div>
 
-        <div className="mt-6 text-6xl font-black text-red-400 animate-pulse">
+        <div className="mt-8 text-6xl font-black text-red-400 animate-pulse">
           57 UNACCOUNTED
         </div>
         <div className="mt-2 text-xl text-gray-300">127 / 184 children accounted</div>
@@ -599,11 +626,11 @@ function RightPanel({ step, current, rightMetric, rightCaption, rightSubcaption,
           Focus the team on the missing, blocked, and highest-risk groups.
         </p>
 
-        <div className="mt-8">
+        <div className="mt-10">
           <OperatorFocusPanel />
         </div>
 
-        <div className="mt-8">
+        <div className="mt-10">
           <LiveIncidentFeed step={step} />
         </div>
       </div>
@@ -618,12 +645,14 @@ function RightPanel({ step, current, rightMetric, rightCaption, rightSubcaption,
           <div className={`mt-8 text-6xl font-black ${current.metric === "COUNTDOWN" ? urgencyTone(timeLeft) : textTone(current.metricTone)} ${current.metricTone === "red" ? "animate-pulse" : ""}`}>
             {rightMetric}
           </div>
-          <div className="mt-2 text-xl text-gray-300">{rightCaption}</div>
-          <div className="mt-1 text-sm text-gray-500">{rightSubcaption}</div>
+          <div className="mt-2 text-xl text-gray-300">{current.metricCaption}</div>
+          <div className="mt-1 text-sm text-gray-500">{current.metricSubcaption}</div>
         </div>
 
-        <div className={`mt-5 grid gap-6 ${current.id === "monitor" ? "lg:grid-cols-1" : "lg:grid-cols-[0.9fr_1.1fr] lg:items-center"}`}>
-          <Radar active={active} large={current.id === "monitor"} />
+        <div className={`mt-5 grid gap-8 ${current.id === "monitor" ? "lg:grid-cols-1" : "lg:grid-cols-[0.9fr_1.1fr] lg:items-center"}`}>
+          <div className={current.id === "monitor" ? "-mt-2 mb-4" : ""}>
+            <Radar active={active} large={current.id === "monitor"} urgent={current.id === "notify" || current.id === "decide"} />
+          </div>
           {current.id !== "monitor" && <SignalRows step={step} />}
         </div>
 
@@ -674,7 +703,7 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
             <div className="flex min-h-[600px] flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between gap-4">
-                  <div className="text-cyan-300 text-lg font-bold">{current.label}</div>
+                  <div className="text-lg font-bold text-cyan-300">{current.label}</div>
                   <StatusPill tone={current.metricTone}>{rightMetric}</StatusPill>
                 </div>
 
@@ -684,7 +713,7 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
                 {current.id === "decide" ? (
                   <DecisionCallout />
                 ) : (
-                  <DetailGrid items={current.detailItems} tone={current.detailTone} />
+                  <DetailGrid items={current.detailItems} tone={current.detailTone} emphasisItem={current.emphasisItem} />
                 )}
               </div>
 
@@ -697,15 +726,7 @@ function Intro({ onEnterDashboard, timeLeft, startIncident }) {
             </div>
           </div>
 
-          <RightPanel
-            step={step}
-            current={current}
-            rightMetric={rightMetric}
-            rightCaption={current.metricCaption}
-            rightSubcaption={current.metricSubcaption}
-            active={active}
-            timeLeft={timeLeft}
-          />
+          <RightPanel step={step} current={current} rightMetric={rightMetric} active={active} timeLeft={timeLeft} />
         </div>
       </div>
     </main>
