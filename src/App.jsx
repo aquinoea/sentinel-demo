@@ -1,17 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Sentinel Camp Mystic Demo V12
+ * Sentinel Camp Mystic Demo V13
  * ------------------------------------------------------------
- * V12 upgrades:
- * - Audit "Mark Safe" now updates cabin counts and total unaccounted count.
- * - Workflow has three live Sentinel recommendation loops:
- *   1) Assign Backup Transport
- *   2) Send Parent SMS
- *   3) Alert Local Authorities
- * - Each recommendation transforms into a resolved state after click.
- * - Dynamic timeline logs transport, parent SMS, authorities, and mark-safe actions.
- * - Overview/header/status cards reflect resolved actions.
+ * V13 upgrades:
+ * - Map is now a decision overlay layer with priority cabins, route, rally point, bridge risk, and decision panel.
+ * - Alert/Notify screens now enforce clear signal hierarchy and blocker escalation.
+ * - Audit adds persistent cabin expansion, counselor ownership, and Missing → Located → Safe status lifecycle.
+ * - Timeline logs locate, mark-safe, parent SMS, authority alert, and transport resolution actions.
+ * - Product narrative: not a weather app; a life-safety decision execution and accountability system.
  */
 
 const MAP_IMAGE_SRC = "/camp-mystic-map.png";
@@ -130,6 +127,13 @@ const INITIAL_CHILDREN_GROUPS = [
   },
 ];
 
+const CABIN_OPERATIONS = {
+  "cabin-3": { counselor: "Maya Ellis", ack: "Acknowledged", lastKnown: "Creek Edge porch", checkpoint: "Rally Point A", action: "Send runner + move group uphill now" },
+  "cabin-4": { counselor: "Ben Walker", ack: "Pending", lastKnown: "Near Creek bunkroom", checkpoint: "Rally Point A", action: "Director calls counselor; backup counselor dispatched" },
+  "cabin-2": { counselor: "Ana Torres", ack: "Partial", lastKnown: "Low Area cabin path", checkpoint: "North hill checkpoint", action: "Confirm roster at hill checkpoint" },
+  "cabin-5": { counselor: "Jordan Kim", ack: "Acknowledged", lastKnown: "Elevated cabin", checkpoint: "Hold in place", action: "Remain staged unless route changes" },
+};
+
 const BASE_ACKNOWLEDGMENTS = [
   { id: "transport", role: "Transport", detail: "No response after escalation window", status: "No Response", time: "8+ min", tone: "red" },
   { id: "counselors", role: "Counselors", detail: "11 / 12 responded", status: "Partial", time: "2:45 AM", tone: "yellow" },
@@ -191,15 +195,27 @@ function buildLiveEvents(actions) {
   return [...resolved.reverse(), ...BASE_LIVE_EVENTS];
 }
 
-function buildTimelineEvents(actions, safeLog, globalUnaccounted) {
+function buildTimelineEvents(actions, safeLog, locateLog, globalUnaccounted) {
   const dynamic = [];
+
+  if (locateLog.length) {
+    locateLog.forEach((entry, index) => {
+      dynamic.push({
+        time: `3:${String(4 + index).padStart(2, "0")} AM`,
+        event: `${entry.name} located — ${entry.cabin} · Owner: ${entry.counselor}`,
+        type: "Located",
+        tone: "cyan",
+        group: "ACTIONS",
+      });
+    });
+  }
 
   if (safeLog.length) {
     safeLog.forEach((entry, index) => {
       dynamic.push({
         time: `3:${String(6 + index).padStart(2, "0")} AM`,
         event: `${entry.name} marked safe — ${entry.cabin}`,
-        type: "Roster Update",
+        type: "Verified Safe",
         tone: "green",
         group: "ACTIONS",
       });
@@ -213,6 +229,7 @@ function buildTimelineEvents(actions, safeLog, globalUnaccounted) {
     });
   }
 
+  dynamic.push({ time: "2:44 AM", event: "Decision issued: evacuate Cabins 2, 3, 4", type: "Command", tone: "yellow", group: "CRITICAL" });
   if (actions.authoritiesAlerted) dynamic.push({ time: "2:52 AM", event: "Local authorities alerted", type: "External Support", tone: "green", group: "ACTIONS" });
   if (actions.parentsNotified) dynamic.push({ time: "2:51 AM", event: "Parent SMS sent", type: "Communications Sent", tone: "green", group: "ACTIONS" });
   if (actions.transportResolved) dynamic.push({ time: "2:50 AM", event: "Backup transport assigned", type: "Resolution Started", tone: "green", group: "ACTIONS" });
@@ -375,11 +392,45 @@ function DetailGrid({ items, tone, emphasisItem }) {
   );
 }
 
+function SignalHierarchyPanel({ type }) {
+  const notify = type === "notify";
+  return (
+    <div className={`mt-5 rounded-2xl border p-5 ${notify ? "border-red-400/30 bg-red-500/10" : "border-red-400/25 bg-red-500/10"}`}>
+      <div className="text-xs font-black uppercase tracking-[0.25em] text-red-300">
+        {notify ? "Critical Blocker" : "Primary Signal"}
+      </div>
+      <div className="mt-2 text-3xl font-black text-red-200">
+        {notify ? "Transport team not responding" : "Flash Flood Warning Active"}
+      </div>
+      <p className="mt-2 text-sm text-gray-300">
+        {notify
+          ? "No response within escalation window. Evacuation movement is at risk until backup transport is assigned."
+          : "Sentinel separates the active warning from the supporting evidence so operators know what matters first."}
+      </p>
+      <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+        <div className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+          {notify ? "Sentinel Recommendation" : "Contributing Signals"}
+        </div>
+        {notify ? (
+          <div className="text-sm font-semibold text-red-100">Assign backup transport or escalate immediately.</div>
+        ) : (
+          <div className="grid gap-2 text-sm text-gray-200 md:grid-cols-2">
+            <div>• River rising rapidly</div>
+            <div>• Rainfall intensity high</div>
+            <div>• Flood zone proximity</div>
+            <div>• Escalation threshold crossed</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TransportRecommendation({ onAssignBackup, assigned = false }) {
   return (
     <div className={`mt-5 rounded-2xl border p-4 ${assigned ? "border-green-400/30 bg-green-500/10" : "border-red-400/30 bg-red-500/10"}`}>
       <div className={`text-xs font-black uppercase tracking-[0.25em] ${assigned ? "text-green-300" : "text-red-300"}`}>
-        {assigned ? "Resolution Started" : "System Insight"}
+        {assigned ? "Resolution Started" : "Critical Blocker"}
       </div>
       <p className="mt-2 text-sm text-gray-200">
         {assigned
@@ -606,17 +657,95 @@ function OverviewScreen({ timeLeft, onOpenMap, actions, cabins, globalUnaccounte
   );
 }
 
+function DecisionMapOverlay() {
+  const points = [
+    { label: "Cabin 3", sub: "Creek Edge", top: "38%", left: "29%", tone: "red" },
+    { label: "Cabin 4", sub: "Near Creek", top: "50%", left: "42%", tone: "red" },
+    { label: "Cabin 2", sub: "Low Area", top: "61%", left: "34%", tone: "red" },
+    { label: "Rally Point", sub: "Higher Ground", top: "19%", left: "70%", tone: "green" },
+    { label: "Bridge Risk", sub: "Avoid Route", top: "54%", left: "62%", tone: "yellow" },
+  ];
+
+  return (
+    <>
+      <div className="pointer-events-none absolute left-[38%] top-[63%] h-3 w-[34%] -rotate-[19deg] rounded-full bg-blue-400/70 shadow-lg shadow-blue-400/20" />
+      <div className="pointer-events-none absolute left-[51%] top-[43%] h-3 w-[23%] -rotate-[44deg] rounded-full bg-blue-400/60 shadow-lg shadow-blue-400/20" />
+      <div className="pointer-events-none absolute bottom-5 left-5 rounded-2xl border border-white/10 bg-black/55 p-4 text-sm text-gray-200 backdrop-blur">
+        <div className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">Decision Layer</div>
+        <div className="mt-2 grid gap-1">
+          <div><span className="text-red-300">●</span> Priority cabins</div>
+          <div><span className="text-blue-300">━</span> Recommended evacuation route</div>
+          <div><span className="text-green-300">●</span> Verified rally point</div>
+          <div><span className="text-yellow-300">▲</span> Bridge risk</div>
+        </div>
+      </div>
+      {points.map((point) => (
+        <div
+          key={point.label}
+          className={`absolute rounded-2xl border px-3 py-2 text-xs shadow-2xl backdrop-blur ${
+            point.tone === "red"
+              ? "border-red-300/50 bg-red-500/20 text-red-100"
+              : point.tone === "green"
+              ? "border-green-300/50 bg-green-500/20 text-green-100"
+              : "border-yellow-300/50 bg-yellow-500/20 text-yellow-100"
+          }`}
+          style={{ top: point.top, left: point.left }}
+        >
+          <div className="font-black">{point.tone === "yellow" ? "⚠" : "●"} {point.label}</div>
+          <div className="opacity-80">{point.sub}</div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function MapScreen() {
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-1 shadow-2xl">
-      <MapImage />
+    <div className="grid gap-6 lg:grid-cols-[1.55fr_0.85fr]">
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-1 shadow-2xl">
+        <div className="relative">
+          <MapImage />
+          <DecisionMapOverlay />
+        </div>
+      </div>
+
+      <Card>
+        <div className="text-xs font-black uppercase tracking-[0.28em] text-yellow-300">Decision Panel</div>
+        <div className="mt-4 rounded-2xl border border-yellow-400/40 bg-yellow-500/10 p-5">
+          <div className="text-3xl font-black leading-tight text-yellow-300">Evacuate Cabins 2, 3, 4</div>
+          <p className="mt-3 text-sm text-gray-200">Move children uphill to Rally Point A. Avoid the bridge corridor.</p>
+        </div>
+        <div className="mt-5 grid gap-3">
+          <div className="rounded-xl border border-red-400/20 bg-red-500/10 p-4">
+            <div className="text-xs uppercase tracking-widest text-red-300">Why</div>
+            <div className="mt-1 text-sm text-red-100">River rising + flash flood warning + low cabin proximity</div>
+          </div>
+          <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-4">
+            <div className="text-xs uppercase tracking-widest text-cyan-300">Time to impact</div>
+            <div className="mt-1 text-lg font-black text-cyan-200">25 minutes</div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="text-xs uppercase tracking-widest text-gray-400">Assigned owner</div>
+            <div className="mt-1 text-sm font-bold text-white">Director + Cabin Counselors</div>
+          </div>
+          <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-4">
+            <div className="text-xs uppercase tracking-widest text-red-300">Blocking execution</div>
+            <div className="mt-1 text-sm font-bold text-red-100">Transport not responding</div>
+          </div>
+        </div>
+        <p className="mt-5 text-sm text-gray-400">
+          The map is not a picture. It is the decision surface: route, risk, owner, and blocker in one place.
+        </p>
+      </Card>
     </div>
   );
 }
 
-function MissingCabinRow({ group, markedSafeByCabin, onMarkSafe }) {
+function MissingCabinRow({ group, markedSafeByCabin, locatedByCabin, onLocate, onMarkSafe }) {
   const [open, setOpen] = useState(false);
   const safeNames = markedSafeByCabin[group.id] ?? [];
+  const locatedNames = locatedByCabin[group.id] ?? [];
+  const ops = CABIN_OPERATIONS[group.id];
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-3">
@@ -624,6 +753,10 @@ function MissingCabinRow({ group, markedSafeByCabin, onMarkSafe }) {
         <div>
           <div className="font-semibold">{group.group}</div>
           <div className="text-xs text-gray-400">{group.status}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <StatusPill tone={ops.ack === "Acknowledged" ? "green" : ops.ack === "Partial" ? "yellow" : "red"}>Counselor: {ops.counselor}</StatusPill>
+            <StatusPill tone={ops.ack === "Acknowledged" ? "green" : ops.ack === "Partial" ? "yellow" : "red"}>{ops.ack}</StatusPill>
+          </div>
         </div>
         <StatusPill tone={group.tone}>{group.accountedText}</StatusPill>
         <button
@@ -639,16 +772,32 @@ function MissingCabinRow({ group, markedSafeByCabin, onMarkSafe }) {
       {open && group.names.length > 0 && (
         <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-100">
           <div className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-red-300">
-            Missing roster
+            Missing roster · verified safety only
+          </div>
+          <div className="mb-3 rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-100">
+            <div className="text-xs font-bold uppercase tracking-widest text-cyan-300">Locate means operational context</div>
+            <div className="mt-1 text-sm">Last known: {ops.lastKnown} · Checkpoint: {ops.checkpoint}</div>
+            <div className="text-sm">Recommended: {ops.action}</div>
           </div>
           <div className="grid gap-2 md:grid-cols-2">
             {group.names.map((name) => {
               const safe = safeNames.includes(name);
+              const located = locatedNames.includes(name) || safe;
               return (
-                <div key={name} className={`rounded-lg border p-2 ${safe ? "border-green-400/30 bg-green-500/15 text-green-100" : "border-white/10 bg-black/10"}`}>
+                <div key={name} className={`rounded-lg border p-2 ${safe ? "border-green-400/30 bg-green-500/15 text-green-100" : located ? "border-cyan-400/30 bg-cyan-500/15 text-cyan-100" : "border-white/10 bg-black/10"}`}>
                   <div className="font-semibold">• {name}</div>
+                  <div className="mt-1 text-xs text-gray-300">
+                    Status: {safe ? "Safe · verified" : located ? "Located · awaiting checkpoint" : "Missing"}
+                  </div>
                   <div className="mt-2 flex gap-2">
-                    <button type="button" className="rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-bold text-cyan-300">Locate</button>
+                    <button
+                      type="button"
+                      onClick={() => onLocate(group.id, group.group, name, ops.counselor)}
+                      disabled={safe || located}
+                      className={`rounded-md px-2 py-1 text-xs font-bold ${located || safe ? "bg-cyan-400/20 text-cyan-200" : "bg-cyan-400/10 text-cyan-300 hover:bg-cyan-400 hover:text-black"}`}
+                    >
+                      {located || safe ? "Located" : "Locate"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => onMarkSafe(group.id, group.group, name)}
@@ -668,7 +817,7 @@ function MissingCabinRow({ group, markedSafeByCabin, onMarkSafe }) {
   );
 }
 
-function AuditScreen({ actions, onAssignBackup, cabins, markedSafeByCabin, onMarkSafe, globalUnaccounted }) {
+function AuditScreen({ actions, onAssignBackup, cabins, markedSafeByCabin, locatedByCabin, onLocate, onMarkSafe, globalUnaccounted }) {
   const acknowledgments = buildAcknowledgments(actions);
 
   return (
@@ -679,13 +828,13 @@ function AuditScreen({ actions, onAssignBackup, cabins, markedSafeByCabin, onMar
 
         <div className={`mb-4 rounded-2xl border p-5 shadow-2xl ring-1 ${actions.transportResolved ? "border-green-400/30 bg-green-500/10 shadow-green-500/10 ring-green-300/10" : "border-red-400/30 bg-red-500/10 shadow-red-500/10 ring-red-300/10"}`}>
           <div className={`text-xs font-bold uppercase tracking-[0.25em] ${actions.transportResolved ? "text-green-300" : "text-red-300"}`}>
-            {actions.transportResolved ? "Resolution Started" : "Critical Gap"}
+            {actions.transportResolved ? "Resolution Started" : "Critical Blocker"}
           </div>
           <div className={`mt-2 text-3xl font-black ${actions.transportResolved ? "text-green-300" : "text-red-300"}`}>
-            {actions.transportResolved ? "Backup transport assigned" : "Transport has not responded"}
+            {actions.transportResolved ? "Backup transport assigned" : "Transport team not responding"}
           </div>
           <div className="mt-1 text-sm text-gray-300">
-            {actions.transportResolved ? "Escalation converted into an active recovery path." : "No response after escalation window · 8+ min"}
+            {actions.transportResolved ? "Escalation converted into an active recovery path." : "No response after escalation window · 8+ min · evacuation movement at risk"}
           </div>
           {!actions.transportResolved && (
             <button
@@ -717,11 +866,11 @@ function AuditScreen({ actions, onAssignBackup, cabins, markedSafeByCabin, onMar
           <StatusPill tone={globalUnaccounted === 0 ? "green" : "red"}>{globalUnaccounted} total</StatusPill>
         </div>
         <p className="mb-4 text-sm text-gray-400">
-          Cabin-level detail keeps the UI actionable. Click missing counts to view roster detail.
+          A child is only safe when verified by a counselor, roster, or checkpoint event — not phone location alone.
         </p>
         <div className="space-y-2">
           {cabins.map((group) => (
-            <MissingCabinRow key={group.id} group={group} markedSafeByCabin={markedSafeByCabin} onMarkSafe={onMarkSafe} />
+            <MissingCabinRow key={group.id} group={group} markedSafeByCabin={markedSafeByCabin} locatedByCabin={locatedByCabin} onLocate={onLocate} onMarkSafe={onMarkSafe} />
           ))}
         </div>
       </Card>
@@ -767,7 +916,7 @@ function SentinelRecommendations({ actions, onAssignBackup, onSendParentSms, onA
       <div className="grid gap-3">
         <RecommendationCard
           title="Transport failure"
-          severity="Critical"
+          severity="Critical Blocker"
           problem="Transport has not responded within the threshold."
           risk="Evacuation movement may be delayed while low cabins remain at risk."
           recommendation="assign backup transport immediately."
@@ -861,8 +1010,8 @@ function TimelineList({ events }) {
   );
 }
 
-function TimelineScreen({ actions, safeLog, globalUnaccounted }) {
-  const timelineEvents = buildTimelineEvents(actions, safeLog, globalUnaccounted);
+function TimelineScreen({ actions, safeLog, locateLog, globalUnaccounted }) {
+  const timelineEvents = buildTimelineEvents(actions, safeLog, locateLog, globalUnaccounted);
   const criticalEvents = timelineEvents.filter((event) => event.group === "CRITICAL");
   const actionEvents = timelineEvents.filter((event) => event.group !== "CRITICAL");
 
@@ -985,6 +1134,10 @@ function Intro({ onEnterDashboard, timeLeft, startIncident, actions, onAssignBac
 
                 {current.id === "decide" ? (
                   <DecisionCallout />
+                ) : current.id === "alert" ? (
+                  <SignalHierarchyPanel type="alert" />
+                ) : current.id === "notify" ? (
+                  <SignalHierarchyPanel type="notify" />
                 ) : (
                   <DetailGrid items={current.detailItems} tone={current.detailTone} emphasisItem={current.emphasisItem} />
                 )}
@@ -1018,7 +1171,7 @@ function Intro({ onEnterDashboard, timeLeft, startIncident, actions, onAssignBac
   );
 }
 
-function Dashboard({ timeLeft, onReplayIntro, actions, actionHandlers, cabins, markedSafeByCabin, onMarkSafe, safeLog, globalUnaccounted }) {
+function Dashboard({ timeLeft, onReplayIntro, actions, actionHandlers, cabins, markedSafeByCabin, locatedByCabin, onLocate, onMarkSafe, safeLog, locateLog, globalUnaccounted }) {
   const [tab, setTab] = useState("overview");
   const tabs = ["overview", "map", "audit", "workflow", "timeline"];
   const status = headerStatus(actions);
@@ -1058,6 +1211,8 @@ function Dashboard({ timeLeft, onReplayIntro, actions, actionHandlers, cabins, m
             onAssignBackup={actionHandlers.assignBackup}
             cabins={cabins}
             markedSafeByCabin={markedSafeByCabin}
+            locatedByCabin={locatedByCabin}
+            onLocate={onLocate}
             onMarkSafe={onMarkSafe}
             globalUnaccounted={globalUnaccounted}
           />
@@ -1070,7 +1225,7 @@ function Dashboard({ timeLeft, onReplayIntro, actions, actionHandlers, cabins, m
             onAlertAuthorities={actionHandlers.alertAuthorities}
           />
         )}
-        {tab === "timeline" && <TimelineScreen actions={actions} safeLog={safeLog} globalUnaccounted={globalUnaccounted} />}
+        {tab === "timeline" && <TimelineScreen actions={actions} safeLog={safeLog} locateLog={locateLog} globalUnaccounted={globalUnaccounted} />}
       </div>
     </main>
   );
@@ -1086,7 +1241,9 @@ export default function App() {
     authoritiesAlerted: false,
   });
   const [markedSafeByCabin, setMarkedSafeByCabin] = useState({});
+  const [locatedByCabin, setLocatedByCabin] = useState({});
   const [safeLog, setSafeLog] = useState([]);
+  const [locateLog, setLocateLog] = useState([]);
 
   useEffect(() => {
     if (!incidentStarted) return undefined;
@@ -1111,8 +1268,27 @@ export default function App() {
     setActions((current) => ({ ...current, authoritiesAlerted: true }));
   };
 
+  const locateChild = (cabinId, cabinName, name, counselor) => {
+    setLocatedByCabin((current) => {
+      const existing = current[cabinId] ?? [];
+      if (existing.includes(name)) return current;
+      return { ...current, [cabinId]: [...existing, name] };
+    });
+
+    setLocateLog((current) => {
+      if (current.some((entry) => entry.name === name && entry.cabin === cabinName)) return current;
+      return [{ name, cabin: cabinName, counselor }, ...current];
+    });
+  };
+
   const markSafe = (cabinId, cabinName, name) => {
     setMarkedSafeByCabin((current) => {
+      const existing = current[cabinId] ?? [];
+      if (existing.includes(name)) return current;
+      return { ...current, [cabinId]: [...existing, name] };
+    });
+
+    setLocatedByCabin((current) => {
       const existing = current[cabinId] ?? [];
       if (existing.includes(name)) return current;
       return { ...current, [cabinId]: [...existing, name] };
@@ -1155,8 +1331,11 @@ export default function App() {
       actionHandlers={actionHandlers}
       cabins={cabins}
       markedSafeByCabin={markedSafeByCabin}
+      locatedByCabin={locatedByCabin}
+      onLocate={locateChild}
       onMarkSafe={markSafe}
       safeLog={safeLog}
+      locateLog={locateLog}
       globalUnaccounted={globalUnaccounted}
     />
   );
